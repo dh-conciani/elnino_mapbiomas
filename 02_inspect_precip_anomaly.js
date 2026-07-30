@@ -1,15 +1,28 @@
 /********************************************************************************
- * INSPEÇÃO — ANOMALIAS TRIMESTRAIS DE PRECIPITAÇÃO / EL NIÑO
+ * INSPECTION — PRECIPITATION ANOMALY + INTER-EVENT VARIABILITY
+ * STRONG EL NIÑO EVENTS
  *
- * Loads the previously exported anomaly assets.
+ * Loads previously exported assets:
  *
- * - Masks visualization to Brazil
- * - Displays MapBiomas biome boundaries
- * - Uses the same visualization range for all trimesters
- * - Adds anomaly legend
+ *   1. Precipitation anomaly
+ *      precip_anomaly_elnino_XXX
  *
- * Unit:
- *   mm per trimester
+ *   2. Inter-event standard deviation
+ *      precip_stddev_elnino_XXX
+ *
+ * XXX:
+ *   DJF
+ *   MAM
+ *   JJA
+ *   SON
+ *
+ * Boundaries:
+ *   - Brazil
+ *   - MapBiomas biomes
+ *
+ * Units:
+ *   anomaly = mm per trimester
+ *   SD      = mm
  *
  * Climatology:
  *   1991–2020
@@ -50,10 +63,29 @@ var anomaliaSON = ee.Image(
 
 
 // =============================================================================
-// 3. BRAZIL BOUNDARY
+// 3. LOAD STANDARD DEVIATION ASSETS
 // =============================================================================
 
-// Use Brazil administrative boundary only for masking the anomaly images.
+var stdDevDJF = ee.Image(
+  ASSET_DIR + '/precip_stddev_elnino_DJF'
+);
+
+var stdDevMAM = ee.Image(
+  ASSET_DIR + '/precip_stddev_elnino_MAM'
+);
+
+var stdDevJJA = ee.Image(
+  ASSET_DIR + '/precip_stddev_elnino_JJA'
+);
+
+var stdDevSON = ee.Image(
+  ASSET_DIR + '/precip_stddev_elnino_SON'
+);
+
+
+// =============================================================================
+// 4. BRAZIL BOUNDARY
+// =============================================================================
 
 var paises = ee.FeatureCollection(
   'FAO/GAUL/2015/level0'
@@ -72,7 +104,8 @@ var brasilFeature = ee.Feature(
 );
 
 
-var brasil = brasilFeature.geometry();
+var brasil =
+  brasilFeature.geometry();
 
 
 Map.centerObject(
@@ -82,30 +115,52 @@ Map.centerObject(
 
 
 // =============================================================================
-// 4. MASK ANOMALIES TO BRAZIL
+// 5. CLIP ONLY FOR VISUALIZATION
 // =============================================================================
 
 /*
- * The original exported ee.Images remain untouched.
+ * Original exported assets remain untouched.
  *
- * These versions are only for inspection.
+ * clip() is used only for map inspection.
  */
 
-var djfBrasil = anomaliaDJF
-  .clip(brasil);
 
-var mamBrasil = anomaliaMAM
-  .clip(brasil);
+// -----------------------------------------------------------------------------
+// Anomaly
+// -----------------------------------------------------------------------------
 
-var jjaBrasil = anomaliaJJA
-  .clip(brasil);
+var anomaliaDJFBrasil =
+  anomaliaDJF.clip(brasil);
 
-var sonBrasil = anomaliaSON
-  .clip(brasil);
+var anomaliaMAMBrasil =
+  anomaliaMAM.clip(brasil);
+
+var anomaliaJJABrasil =
+  anomaliaJJA.clip(brasil);
+
+var anomaliaSONBrasil =
+  anomaliaSON.clip(brasil);
+
+
+// -----------------------------------------------------------------------------
+// Standard deviation
+// -----------------------------------------------------------------------------
+
+var stdDevDJFBrasil =
+  stdDevDJF.clip(brasil);
+
+var stdDevMAMBrasil =
+  stdDevMAM.clip(brasil);
+
+var stdDevJJABrasil =
+  stdDevJJA.clip(brasil);
+
+var stdDevSONBrasil =
+  stdDevSON.clip(brasil);
 
 
 // =============================================================================
-// 5. MAPBIOMAS BIOMES
+// 6. MAPBIOMAS BIOMES
 // =============================================================================
 
 var biomas = ee.FeatureCollection(
@@ -118,14 +173,9 @@ print(
   biomas
 );
 
-print(
-  'Example biome feature:',
-  biomas.first()
-);
-
 
 // =============================================================================
-// 6. ANOMALY VISUALIZATION
+// 7. ANOMALY VISUALIZATION
 // =============================================================================
 
 var PALETA_ANOMALIA = [
@@ -150,9 +200,11 @@ var PALETA_ANOMALIA = [
 
 var VIS_ANOMALIA = {
 
-  min: -300,
+  min:
+    -300,
 
-  max: 300,
+  max:
+    300,
 
   palette:
     PALETA_ANOMALIA
@@ -161,103 +213,319 @@ var VIS_ANOMALIA = {
 
 
 // =============================================================================
-// 7. ADD TRIMESTERS
-// =============================================================================
-
-Map.addLayer(
-  djfBrasil,
-  VIS_ANOMALIA,
-  '01 | DJF — El Niño precipitation anomaly',
-  true
-);
-
-
-Map.addLayer(
-  mamBrasil,
-  VIS_ANOMALIA,
-  '02 | MAM — El Niño precipitation anomaly',
-  false
-);
-
-
-Map.addLayer(
-  jjaBrasil,
-  VIS_ANOMALIA,
-  '03 | JJA — El Niño precipitation anomaly',
-  false
-);
-
-
-Map.addLayer(
-  sonBrasil,
-  VIS_ANOMALIA,
-  '04 | SON — El Niño precipitation anomaly',
-  false
-);
-
-
-// =============================================================================
-// 8. BIOME BOUNDARIES
+// 8. STANDARD DEVIATION VISUALIZATION
 // =============================================================================
 
 /*
- * Draw only the outlines.
+ * Low values:
+ *   events behaved more similarly.
  *
- * The 5 km buffer in the biome asset therefore does not affect
- * the precipitation mask.
+ * High values:
+ *   greater differences among the three
+ *   strong El Niño events.
  */
 
-var linhasBiomas = ee.Image(0)
-  .byte()
-  .paint({
-    featureCollection: biomas,
-    color: 1,
-    width: 2
-  })
-  .selfMask();
+var PALETA_STDDEV = [
+
+  'ffffff',
+  'ffffcc',
+  'ffeda0',
+  'fed976',
+  'feb24c',
+  'fd8d3c',
+  'fc4e2a',
+  'e31a1c',
+  'bd0026',
+  '800026'
+
+];
+
+
+var VIS_STDDEV = {
+
+  min:
+    0,
+
+  max:
+    200,
+
+  palette:
+    PALETA_STDDEV
+
+};
+
+
+// =============================================================================
+// 9. ADD ANOMALY LAYERS
+// =============================================================================
+
+Map.addLayer(
+
+  anomaliaDJFBrasil,
+
+  VIS_ANOMALIA,
+
+  '01 | DJF — precipitation anomaly',
+
+  true
+
+);
 
 
 Map.addLayer(
-  linhasBiomas,
-  {
-    palette: ['333333']
-  },
-  'Biome boundaries',
-  true
+
+  anomaliaMAMBrasil,
+
+  VIS_ANOMALIA,
+
+  '02 | MAM — precipitation anomaly',
+
+  false
+
+);
+
+
+Map.addLayer(
+
+  anomaliaJJABrasil,
+
+  VIS_ANOMALIA,
+
+  '03 | JJA — precipitation anomaly',
+
+  false
+
+);
+
+
+Map.addLayer(
+
+  anomaliaSONBrasil,
+
+  VIS_ANOMALIA,
+
+  '04 | SON — precipitation anomaly',
+
+  false
+
 );
 
 
 // =============================================================================
-// 9. BRAZIL NATIONAL BOUNDARY
+// 10. ADD STANDARD DEVIATION LAYERS
+// =============================================================================
+
+Map.addLayer(
+
+  stdDevDJFBrasil,
+
+  VIS_STDDEV,
+
+  '05 | DJF — inter-event SD',
+
+  false
+
+);
+
+
+Map.addLayer(
+
+  stdDevMAMBrasil,
+
+  VIS_STDDEV,
+
+  '06 | MAM — inter-event SD',
+
+  false
+
+);
+
+
+Map.addLayer(
+
+  stdDevJJABrasil,
+
+  VIS_STDDEV,
+
+  '07 | JJA — inter-event SD',
+
+  false
+
+);
+
+
+Map.addLayer(
+
+  stdDevSONBrasil,
+
+  VIS_STDDEV,
+
+  '08 | SON — inter-event SD',
+
+  false
+
+);
+
+
+// =============================================================================
+// 11. BIOME BOUNDARIES
+// =============================================================================
+
+var linhasBiomas = ee.Image(0)
+
+  .byte()
+
+  .paint({
+
+    featureCollection:
+      biomas,
+
+    color:
+      1,
+
+    width:
+      2
+
+  })
+
+  .selfMask();
+
+
+Map.addLayer(
+
+  linhasBiomas,
+
+  {
+    palette:
+      ['333333']
+  },
+
+  'Biome boundaries',
+
+  true
+
+);
+
+
+// =============================================================================
+// 12. BRAZIL NATIONAL BOUNDARY
 // =============================================================================
 
 var linhaBrasil = ee.Image(0)
+
   .byte()
+
   .paint({
-    featureCollection: ee.FeatureCollection([
-      brasilFeature
-    ]),
-    color: 1,
-    width: 2
+
+    featureCollection:
+      ee.FeatureCollection([
+        brasilFeature
+      ]),
+
+    color:
+      1,
+
+    width:
+      2
+
   })
+
   .selfMask();
 
 
 Map.addLayer(
+
   linhaBrasil,
+
   {
-    palette: ['000000']
+    palette:
+      ['000000']
   },
+
   'Brazil boundary',
+
   true
+
 );
 
 
 // =============================================================================
-// 10. LEGEND
+// 13. GENERIC LEGEND ROW
 // =============================================================================
 
-function adicionarLegenda() {
+function adicionarLinhaLegenda(
+  painel,
+  cor,
+  texto
+) {
+
+
+  var caixaCor = ui.Label({
+
+    style: {
+
+      backgroundColor:
+        '#' + cor,
+
+      padding:
+        '8px',
+
+      margin:
+        '0 6px 3px 0',
+
+      border:
+        '1px solid #999999'
+
+    }
+
+  });
+
+
+  var label = ui.Label({
+
+    value:
+      texto,
+
+    style: {
+
+      fontSize:
+        '11px',
+
+      margin:
+        '0 0 3px 0'
+
+    }
+
+  });
+
+
+  painel.add(
+
+    ui.Panel({
+
+      widgets: [
+        caixaCor,
+        label
+      ],
+
+      layout:
+        ui.Panel.Layout.Flow(
+          'horizontal'
+        )
+
+    })
+
+  );
+
+}
+
+
+// =============================================================================
+// 14. ANOMALY LEGEND
+// =============================================================================
+
+function adicionarLegendaAnomalia() {
+
 
   var painel = ui.Panel({
 
@@ -276,8 +544,6 @@ function adicionarLegenda() {
 
   });
 
-
-  // Title
 
   painel.add(
 
@@ -303,8 +569,6 @@ function adicionarLegenda() {
 
   );
 
-
-  // Unit
 
   painel.add(
 
@@ -372,67 +636,14 @@ function adicionarLegenda() {
   ) {
 
 
-    var caixaCor = ui.Label({
-
-      style: {
-
-        backgroundColor:
-          '#' + cores[i],
-
-        padding:
-          '8px',
-
-        margin:
-          '0 6px 3px 0',
-
-        border:
-          '1px solid #999999'
-
-      }
-
-    });
-
-
-    var texto = ui.Label({
-
-      value:
-        textos[i],
-
-      style: {
-
-        fontSize:
-          '11px',
-
-        margin:
-          '0 0 3px 0'
-
-      }
-
-    });
-
-
-    painel.add(
-
-      ui.Panel({
-
-        widgets: [
-          caixaCor,
-          texto
-        ],
-
-        layout:
-          ui.Panel.Layout.Flow(
-            'horizontal'
-          )
-
-      })
-
+    adicionarLinhaLegenda(
+      painel,
+      cores[i],
+      textos[i]
     );
 
   }
 
-
-  // Footer
 
   painel.add(
 
@@ -466,43 +677,282 @@ function adicionarLegenda() {
 }
 
 
-adicionarLegenda();
+adicionarLegendaAnomalia();
 
 
 // =============================================================================
-// 11. CONSOLE INSPECTION
+// 15. STANDARD DEVIATION LEGEND
+// =============================================================================
+
+function adicionarLegendaStdDev() {
+
+
+  var painel = ui.Panel({
+
+    style: {
+
+      position:
+        'bottom-right',
+
+      padding:
+        '8px 12px',
+
+      backgroundColor:
+        'white'
+
+    }
+
+  });
+
+
+  painel.add(
+
+    ui.Label({
+
+      value:
+        'El Niño inter-event variability',
+
+      style: {
+
+        fontWeight:
+          'bold',
+
+        fontSize:
+          '14px',
+
+        margin:
+          '0 0 4px 0'
+
+      }
+
+    })
+
+  );
+
+
+  painel.add(
+
+    ui.Label({
+
+      value:
+        'Standard deviation — mm',
+
+      style: {
+
+        fontSize:
+          '11px',
+
+        margin:
+          '0 0 8px 0'
+
+      }
+
+    })
+
+  );
+
+
+  /*
+   * Matching VIS_STDDEV:
+   *
+   * min = 0
+   * max = 200
+   */
+
+  var cores = [
+
+    'ffffff',
+    'ffffcc',
+    'ffeda0',
+    'fed976',
+    'feb24c',
+    'fd8d3c',
+    'fc4e2a',
+    'e31a1c',
+    'bd0026',
+    '800026'
+
+  ];
+
+
+  var textos = [
+
+    '0–20 mm',
+
+    '20–40 mm',
+
+    '40–60 mm',
+
+    '60–80 mm',
+
+    '80–100 mm',
+
+    '100–120 mm',
+
+    '120–140 mm',
+
+    '140–160 mm',
+
+    '160–180 mm',
+
+    '180–200+ mm'
+
+  ];
+
+
+  for (
+    var i = 0;
+    i < cores.length;
+    i++
+  ) {
+
+
+    adicionarLinhaLegenda(
+      painel,
+      cores[i],
+      textos[i]
+    );
+
+  }
+
+
+  painel.add(
+
+    ui.Label({
+
+      value:
+        'Low SD = more consistent response',
+
+      style: {
+
+        fontSize:
+          '10px',
+
+        color:
+          '666666',
+
+        margin:
+          '8px 0 0 0'
+
+      }
+
+    })
+
+  );
+
+
+  painel.add(
+
+    ui.Label({
+
+      value:
+        'High SD = greater inter-event variability',
+
+      style: {
+
+        fontSize:
+          '10px',
+
+        color:
+          '666666',
+
+        margin:
+          '2px 0 0 0'
+
+      }
+
+    })
+
+  );
+
+
+  Map.add(
+    painel
+  );
+
+}
+
+
+adicionarLegendaStdDev();
+
+
+// =============================================================================
+// 16. CONSOLE INSPECTION — ANOMALY
 // =============================================================================
 
 print(
-  'DJF',
+  'Anomaly DJF:',
   anomaliaDJF
 );
 
 print(
-  'MAM',
+  'Anomaly MAM:',
   anomaliaMAM
 );
 
 print(
-  'JJA',
+  'Anomaly JJA:',
   anomaliaJJA
 );
 
 print(
-  'SON',
+  'Anomaly SON:',
   anomaliaSON
 );
 
 
+// =============================================================================
+// 17. CONSOLE INSPECTION — STANDARD DEVIATION
+// =============================================================================
+
 print(
-  'Projection:',
+  'SD DJF:',
+  stdDevDJF
+);
+
+print(
+  'SD MAM:',
+  stdDevMAM
+);
+
+print(
+  'SD JJA:',
+  stdDevJJA
+);
+
+print(
+  'SD SON:',
+  stdDevSON
+);
+
+
+// =============================================================================
+// 18. PROJECTION CHECK
+// =============================================================================
+
+print(
+  'Anomaly projection:',
   anomaliaDJF.projection()
 );
 
 
 print(
-  'Nominal scale:',
+  'Anomaly nominal scale:',
   anomaliaDJF
+    .projection()
+    .nominalScale()
+);
+
+
+print(
+  'SD projection:',
+  stdDevDJF.projection()
+);
+
+
+print(
+  'SD nominal scale:',
+  stdDevDJF
     .projection()
     .nominalScale()
 );

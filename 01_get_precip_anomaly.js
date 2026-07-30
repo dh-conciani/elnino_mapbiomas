@@ -1,21 +1,30 @@
 /********************************************************************************
- * ANOMALIA TRIMESTRAL DE PRECIPITAÇÃO — EL NIÑO FORTE
+ * PRECIPITATION ANOMALY — STRONG EL NIÑO EVENTS
  *
  * ERA5-Land Monthly Aggregated
  * ECMWF/ERA5_LAND/MONTHLY_AGGR
  *
- * Climatologia: 1991–2020
+ * Climatology:
+ *   1991–2020
  *
- * Eventos:
+ * Strong El Niño events:
  *   1982/83
  *   1997/98
  *   2015/16
  *
- * Saída:
- *   precip_anomaly_elnino_DJF
- *   precip_anomaly_elnino_MAM
- *   precip_anomaly_elnino_JJA
- *   precip_anomaly_elnino_SON
+ * Products:
+ *
+ *   1. Mean precipitation anomaly
+ *      precip_anomaly_elnino_XXX
+ *
+ *   2. Inter-event standard deviation
+ *      precip_stddev_elnino_XXX
+ *
+ * XXX:
+ *   DJF
+ *   MAM
+ *   JJA
+ *   SON
  ********************************************************************************/
 
 
@@ -25,12 +34,17 @@
 
 var CONFIG = {
 
-  inicioClimatologia: '1991-01-01',
-  fimClimatologia: '2021-01-01',
+  inicioClimatologia:
+    '1991-01-01',
 
-  nAnosClimatologia: 30,
+  fimClimatologia:
+    '2021-01-01',
 
-  escalaExportacao: 11132,
+  nAnosClimatologia:
+    30,
+
+  escalaExportacao:
+    11132,
 
   assetDir:
     'projects/mapbiomas-brazil/assets/DEGRADATION/COLLECTION-10/ELNINO'
@@ -39,7 +53,7 @@ var CONFIG = {
 
 
 // =============================================================================
-// 2. TRIMESTRES
+// 2. TRIMESTERS
 // =============================================================================
 
 var TRIMESTRES = {
@@ -80,7 +94,7 @@ var NOMES_TRIMESTRES = [
 
 
 // =============================================================================
-// 3. BRASIL
+// 3. BRAZIL
 // =============================================================================
 
 var paises = ee.FeatureCollection(
@@ -100,18 +114,17 @@ var brasilFeature = ee.Feature(
 );
 
 
-var brasil = brasilFeature.geometry();
+var brasil =
+  brasilFeature.geometry();
 
 
-// Simplificação adequada para uma imagem com ~11 km de resolução.
-// Reduz bastante o custo de rasterização da geometria no export.
-
-var brasilExport = brasil.simplify(
-  1000
-);
+var brasilExport =
+  brasil.simplify(
+    1000
+  );
 
 
-// Estados apenas para visualização.
+// States only for visual reference.
 
 var estados = ee.FeatureCollection(
   'FAO/GAUL/2015/level1'
@@ -150,14 +163,25 @@ var era5Land = ee.ImageCollection(
   .map(
     function(image) {
 
-      // metros -> milímetros
+      // meters -> millimeters
 
-      return image
-        .multiply(1000)
-        .max(0)
+      var precipitacao = image
+
+        .multiply(
+          1000
+        )
+
+        // Remove small negative numerical artifacts.
+        .max(
+          0
+        )
+
         .rename(
           'precipitacao_mm'
-        )
+        );
+
+
+      return precipitacao
         .copyProperties(
           image,
           ['system:time_start']
@@ -168,13 +192,14 @@ var era5Land = ee.ImageCollection(
 
 
 // =============================================================================
-// 5. TOTAL TRIMESTRAL DE UM EVENTO
+// 5. TRIMESTER TOTAL FOR ONE EVENT
 // =============================================================================
 
 function calcularTotalTrimestral(
   anoInicial,
   mesInicial
 ) {
+
 
   var inicio = ee.Date.fromYMD(
     anoInicial,
@@ -187,6 +212,19 @@ function calcularTotalTrimestral(
     3,
     'month'
   );
+
+
+  /*
+   * Example:
+   *
+   * DJF 1982/83 =
+   *
+   * December 1982
+   * +
+   * January 1983
+   * +
+   * February 1983
+   */
 
 
   return era5Land
@@ -206,22 +244,21 @@ function calcularTotalTrimestral(
 
 
 // =============================================================================
-// 6. MÉDIA DOS EVENTOS EL NIÑO
+// 6. COLLECTION OF THE THREE EL NIÑO EVENTS
 // =============================================================================
 
-function calcularMediaEventos(
+function criarColecaoEventos(
   nomeTrimestre
 ) {
+
 
   var config =
     TRIMESTRES[nomeTrimestre];
 
 
-  // Client-side list pequena:
-  // somente três eventos.
-
   var imagensEventos =
     config.anosEventos.map(
+
       function(ano) {
 
         return calcularTotalTrimestral(
@@ -230,13 +267,29 @@ function calcularMediaEventos(
         );
 
       }
+
     );
 
 
-  return ee.ImageCollection
-    .fromImages(
-      imagensEventos
-    )
+  return ee.ImageCollection.fromImages(
+    imagensEventos
+  );
+
+}
+
+
+// =============================================================================
+// 7. MEAN OF EL NIÑO EVENTS
+// =============================================================================
+
+function calcularMediaEventos(
+  nomeTrimestre
+) {
+
+
+  return criarColecaoEventos(
+    nomeTrimestre
+  )
 
     .mean()
 
@@ -248,21 +301,61 @@ function calcularMediaEventos(
 
 
 // =============================================================================
-// 7. FILTRO DOS MESES DA CLIMATOLOGIA
+// 8. INTER-EVENT STANDARD DEVIATION
+// =============================================================================
+
+function calcularDesvioPadraoEventos(
+  nomeTrimestre
+) {
+
+
+  /*
+   * Standard deviation among:
+   *
+   * 1982/83
+   * 1997/98
+   * 2015/16
+   *
+   * LOW SD:
+   * similar precipitation response among events.
+   *
+   * HIGH SD:
+   * strong differences among events.
+   */
+
+
+  return criarColecaoEventos(
+    nomeTrimestre
+  )
+
+    .reduce(
+      ee.Reducer.stdDev()
+    )
+
+    .rename(
+      'stddev_eventos_mm'
+    )
+
+    .toFloat();
+
+}
+
+
+// =============================================================================
+// 9. CLIMATOLOGY MONTH FILTER
 // =============================================================================
 
 function filtroMesesTrimestre(
   nomeTrimestre
 ) {
 
-  /*
-   * DJF cruza dezembro -> janeiro.
-   *
-   * Para os demais trimestres,
-   * calendarRange simples é suficiente.
-   */
 
-  if (nomeTrimestre === 'DJF') {
+  // DJF crosses calendar years.
+
+  if (
+    nomeTrimestre === 'DJF'
+  ) {
+
 
     return ee.Filter.or(
 
@@ -284,7 +377,8 @@ function filtroMesesTrimestre(
 
 
   var meses =
-    TRIMESTRES[nomeTrimestre].meses;
+    TRIMESTRES[nomeTrimestre]
+      .meses;
 
 
   return ee.Filter.calendarRange(
@@ -297,41 +391,39 @@ function filtroMesesTrimestre(
 
 
 // =============================================================================
-// 8. CLIMATOLOGIA TRIMESTRAL
+// 10. TRIMESTER CLIMATOLOGY — 1991–2020
 // =============================================================================
 
 function calcularClimatologia(
   nomeTrimestre
 ) {
 
-  /*
-   * O código anterior fazia:
-   *
-   * mean(Jan) + mean(Fev) + mean(Mar)
-   *
-   * etc.
-   *
-   * Como existem 30 anos completos:
-   *
-   * sum(todos os 90 meses) / 30
-   *
-   * é matematicamente equivalente e produz
-   * um grafo de processamento mais simples.
-   */
 
+  var colecaoClima =
+    era5Land
 
-  var colecaoClima = era5Land
-
-    .filterDate(
-      CONFIG.inicioClimatologia,
-      CONFIG.fimClimatologia
-    )
-
-    .filter(
-      filtroMesesTrimestre(
-        nomeTrimestre
+      .filterDate(
+        CONFIG.inicioClimatologia,
+        CONFIG.fimClimatologia
       )
-    );
+
+      .filter(
+        filtroMesesTrimestre(
+          nomeTrimestre
+        )
+      );
+
+
+  /*
+   * 30 years × 3 months = 90 monthly images.
+   *
+   * sum(90 months) / 30
+   *
+   * =
+   *
+   * mean trimester precipitation
+   * during 1991–2020.
+   */
 
 
   return colecaoClima
@@ -350,12 +442,13 @@ function calcularClimatologia(
 
 
 // =============================================================================
-// 9. CALCULAR ANOMALIA
+// 11. PRECIPITATION ANOMALY
 // =============================================================================
 
 function calcularAnomalia(
   nomeTrimestre
 ) {
+
 
   var config =
     TRIMESTRES[nomeTrimestre];
@@ -374,12 +467,11 @@ function calcularAnomalia(
 
 
   /*
-   * IMPORTANTE:
+   * ANOMALY =
    *
-   * NÃO usamos clip() aqui.
-   *
-   * A imagem continua no grid original do ERA5-Land.
-   * O recorte será aplicado somente no Map / Export.
+   * mean strong-El-Niño precipitation
+   * -
+   * 1991–2020 climatological precipitation
    */
 
 
@@ -424,33 +516,47 @@ function calcularAnomalia(
 
 
 // =============================================================================
-// 10. CALCULAR OS 4 TRIMESTRES
+// 12. CALCULATE PRODUCTS
 // =============================================================================
 
-var anomalias = {};
+var resultados = {};
 
 
 NOMES_TRIMESTRES.forEach(
+
   function(nomeTrimestre) {
 
-    anomalias[nomeTrimestre] =
-      calcularAnomalia(
-        nomeTrimestre
-      );
+
+    resultados[nomeTrimestre] = {
+
+      anomaly:
+        calcularAnomalia(
+          nomeTrimestre
+        ),
+
+      stdDev:
+        calcularDesvioPadraoEventos(
+          nomeTrimestre
+        )
+
+    };
 
   }
+
 );
 
 
 // =============================================================================
-// 11. VISUALIZAÇÃO
+// 13. VISUALIZATION — PRECIPITATION ANOMALY
 // =============================================================================
 
 var VIS_ANOMALIA = {
 
-  min: -300,
+  min:
+    -300,
 
-  max: 300,
+  max:
+    300,
 
   palette: [
 
@@ -475,79 +581,125 @@ var VIS_ANOMALIA = {
 
 
 // =============================================================================
-// 12. MAPAS PARA INSPEÇÃO
+// 14. VISUALIZATION — STANDARD DEVIATION
 // =============================================================================
 
-/*
- * Clip somente para DISPLAY.
- *
- * Só DJF fica ligado inicialmente para evitar
- * várias requisições simultâneas ao servidor.
- */
+var VIS_STDDEV = {
 
+  min:
+    0,
+
+  max:
+    200,
+
+  palette: [
+
+    'ffffff',
+    'ffffcc',
+    'ffeda0',
+    'fed976',
+    'feb24c',
+    'fd8d3c',
+    'fc4e2a',
+    'e31a1c',
+    'bd0026',
+    '800026'
+
+  ]
+
+};
+
+
+// =============================================================================
+// 15. ANOMALY MAPS
+// =============================================================================
 
 Map.addLayer(
-
-  anomalias.DJF.clip(
+  resultados.DJF.anomaly.clip(
     brasilExport
   ),
-
   VIS_ANOMALIA,
-
-  '01 | Anomalia El Niño — DJF',
-
+  '01 | Anomaly — DJF',
   true
-
 );
 
 
 Map.addLayer(
-
-  anomalias.MAM.clip(
+  resultados.MAM.anomaly.clip(
     brasilExport
   ),
-
   VIS_ANOMALIA,
-
-  '02 | Anomalia El Niño — MAM',
-
+  '02 | Anomaly — MAM',
   false
-
 );
 
 
 Map.addLayer(
-
-  anomalias.JJA.clip(
+  resultados.JJA.anomaly.clip(
     brasilExport
   ),
-
   VIS_ANOMALIA,
-
-  '03 | Anomalia El Niño — JJA',
-
+  '03 | Anomaly — JJA',
   false
-
 );
 
 
 Map.addLayer(
-
-  anomalias.SON.clip(
+  resultados.SON.anomaly.clip(
     brasilExport
   ),
-
   VIS_ANOMALIA,
-
-  '04 | Anomalia El Niño — SON',
-
+  '04 | Anomaly — SON',
   false
-
 );
 
 
 // =============================================================================
-// 13. LIMITES ESTADUAIS
+// 16. STANDARD DEVIATION MAPS
+// =============================================================================
+
+Map.addLayer(
+  resultados.DJF.stdDev.clip(
+    brasilExport
+  ),
+  VIS_STDDEV,
+  '05 | SD events — DJF',
+  false
+);
+
+
+Map.addLayer(
+  resultados.MAM.stdDev.clip(
+    brasilExport
+  ),
+  VIS_STDDEV,
+  '06 | SD events — MAM',
+  false
+);
+
+
+Map.addLayer(
+  resultados.JJA.stdDev.clip(
+    brasilExport
+  ),
+  VIS_STDDEV,
+  '07 | SD events — JJA',
+  false
+);
+
+
+Map.addLayer(
+  resultados.SON.stdDev.clip(
+    brasilExport
+  ),
+  VIS_STDDEV,
+  '08 | SD events — SON',
+  false
+);
+
+
+// =============================================================================
+// 17. STATE BOUNDARIES
 // =============================================================================
 
 var linhasEstados = ee.Image()
@@ -572,10 +724,11 @@ Map.addLayer(
   linhasEstados,
 
   {
-    palette: ['555555']
+    palette:
+      ['555555']
   },
 
-  'Limites estaduais',
+  'State boundaries',
 
   true
 
@@ -583,10 +736,82 @@ Map.addLayer(
 
 
 // =============================================================================
-// 14. LEGENDA
+// 18. GENERIC LEGEND ROW
 // =============================================================================
 
-function adicionarLegenda() {
+function adicionarLinhaLegenda(
+  painel,
+  cor,
+  texto
+) {
+
+
+  var caixaCor = ui.Label({
+
+    style: {
+
+      backgroundColor:
+        '#' + cor,
+
+      padding:
+        '8px',
+
+      margin:
+        '0 6px 3px 0',
+
+      border:
+        '1px solid #999999'
+
+    }
+
+  });
+
+
+  var label = ui.Label({
+
+    value:
+      texto,
+
+    style: {
+
+      fontSize:
+        '11px',
+
+      margin:
+        '0 0 3px 0'
+
+    }
+
+  });
+
+
+  painel.add(
+
+    ui.Panel({
+
+      widgets: [
+        caixaCor,
+        label
+      ],
+
+      layout:
+        ui.Panel.Layout.Flow(
+          'horizontal'
+        )
+
+    })
+
+  );
+
+}
+
+
+// =============================================================================
+// 19. ANOMALY LEGEND
+// =============================================================================
+
+function adicionarLegendaAnomalia() {
+
 
   var painel = ui.Panel({
 
@@ -596,7 +821,10 @@ function adicionarLegenda() {
         'bottom-left',
 
       padding:
-        '8px 12px'
+        '8px 12px',
+
+      backgroundColor:
+        'ffffff'
 
     }
 
@@ -608,7 +836,7 @@ function adicionarLegenda() {
     ui.Label({
 
       value:
-        'Anomalia de precipitação — El Niño',
+        'El Niño precipitation anomaly',
 
       style: {
 
@@ -630,7 +858,7 @@ function adicionarLegenda() {
     ui.Label({
 
       value:
-        'mm por trimestre',
+        'mm per trimester',
 
       style: {
 
@@ -664,12 +892,14 @@ function adicionarLegenda() {
   var textos = [
 
     '≤ −300 mm',
-    '−300 a −200 mm',
-    '−200 a −100 mm',
-    '−100 a 0 mm',
+    '−300 to −200 mm',
+    '−200 to −100 mm',
+    '−100 to 0 mm',
+
     '≈ 0 mm',
-    '0 a 100 mm',
-    '100 a 200 mm',
+
+    '0 to 100 mm',
+    '100 to 200 mm',
     '≥ 300 mm'
 
   ];
@@ -681,59 +911,39 @@ function adicionarLegenda() {
     i++
   ) {
 
-    painel.add(
 
-      ui.Panel({
-
-        widgets: [
-
-          ui.Label({
-
-            style: {
-
-              backgroundColor:
-                '#' + cores[i],
-
-              padding:
-                '8px',
-
-              margin:
-                '0 6px 3px 0'
-
-            }
-
-          }),
-
-
-          ui.Label({
-
-            value:
-              textos[i],
-
-            style: {
-
-              fontSize:
-                '11px',
-
-              margin:
-                '0 0 3px 0'
-
-            }
-
-          })
-
-        ],
-
-        layout:
-          ui.Panel.Layout.Flow(
-            'horizontal'
-          )
-
-      })
-
+    adicionarLinhaLegenda(
+      painel,
+      cores[i],
+      textos[i]
     );
 
   }
+
+
+  painel.add(
+
+    ui.Label({
+
+      value:
+        'Climatology: 1991–2020',
+
+      style: {
+
+        fontSize:
+          '10px',
+
+        color:
+          '666666',
+
+        margin:
+          '7px 0 0 0'
+
+      }
+
+    })
+
+  );
 
 
   Map.add(
@@ -743,14 +953,198 @@ function adicionarLegenda() {
 }
 
 
-adicionarLegenda();
+adicionarLegendaAnomalia();
 
 
 // =============================================================================
-// 15. EXPORTS
+// 20. STANDARD DEVIATION LEGEND
+// =============================================================================
+
+function adicionarLegendaStdDev() {
+
+
+  var painel = ui.Panel({
+
+    style: {
+
+      position:
+        'bottom-right',
+
+      padding:
+        '8px 12px',
+
+      backgroundColor:
+        'ffffff'
+
+    }
+
+  });
+
+
+  painel.add(
+
+    ui.Label({
+
+      value:
+        'Inter-event variability',
+
+      style: {
+
+        fontWeight:
+          'bold',
+
+        fontSize:
+          '14px'
+
+      }
+
+    })
+
+  );
+
+
+  painel.add(
+
+    ui.Label({
+
+      value:
+        'Standard deviation — mm',
+
+      style: {
+
+        fontSize:
+          '11px',
+
+        margin:
+          '0 0 8px 0'
+
+      }
+
+    })
+
+  );
+
+
+  /*
+   * Same range as VIS_STDDEV:
+   *
+   * 0–200 mm.
+   */
+
+  var cores = [
+
+    'ffffff',
+    'ffffcc',
+    'ffeda0',
+    'fed976',
+    'feb24c',
+    'fd8d3c',
+    'fc4e2a',
+    'e31a1c',
+    'bd0026',
+    '800026'
+
+  ];
+
+
+  var textos = [
+
+    '0–20 mm',
+    '20–40 mm',
+    '40–60 mm',
+    '60–80 mm',
+    '80–100 mm',
+    '100–120 mm',
+    '120–140 mm',
+    '140–160 mm',
+    '160–180 mm',
+    '180–200+ mm'
+
+  ];
+
+
+  for (
+    var i = 0;
+    i < cores.length;
+    i++
+  ) {
+
+
+    adicionarLinhaLegenda(
+      painel,
+      cores[i],
+      textos[i]
+    );
+
+  }
+
+
+  painel.add(
+
+    ui.Label({
+
+      value:
+        'Low SD = more consistent response',
+
+      style: {
+
+        fontSize:
+          '10px',
+
+        color:
+          '666666',
+
+        margin:
+          '7px 0 0 0'
+
+      }
+
+    })
+
+  );
+
+
+  painel.add(
+
+    ui.Label({
+
+      value:
+        'High SD = greater variation among events',
+
+      style: {
+
+        fontSize:
+          '10px',
+
+        color:
+          '666666',
+
+        margin:
+          '2px 0 0 0'
+
+      }
+
+    })
+
+  );
+
+
+  Map.add(
+    painel
+  );
+
+}
+
+
+adicionarLegendaStdDev();
+
+
+// =============================================================================
+// 21. EXPORT PRECIPITATION ANOMALY
 // =============================================================================
 
 NOMES_TRIMESTRES.forEach(
+
   function(nomeTrimestre) {
 
 
@@ -765,20 +1159,15 @@ NOMES_TRIMESTRES.forEach(
       nomeAsset;
 
 
-    /*
-     * NÃO fazemos clip() da imagem.
-     *
-     * O "region" controla onde a imagem será exportada.
-     *
-     * brasilExport é uma versão simplificada do limite,
-     * adequada à resolução de ~11 km.
-     */
+    var image =
+      resultados[nomeTrimestre]
+        .anomaly;
 
 
     Export.image.toAsset({
 
       image:
-        anomalias[nomeTrimestre],
+        image,
 
       description:
         nomeAsset,
@@ -798,57 +1187,172 @@ NOMES_TRIMESTRES.forEach(
       maxPixels:
         1e13,
 
-
-      // Tile menor para deixar o processamento
-      // do batch export mais conservador em memória.
-
       shardSize:
         128,
 
-
-      // Conforme solicitado.
-
       pyramidingPolicy: {
-        'anomalia_mm': 'mode'
+
+        'anomalia_mm':
+          'mode'
+
       }
 
     });
 
 
     print(
-      'Task criada:',
-      nomeAsset
+      'Anomaly export:',
+      assetId
     );
 
   }
+
 );
 
 
 // =============================================================================
-// 16. CHECK
+// 22. EXPORT STANDARD DEVIATION
+// =============================================================================
+
+NOMES_TRIMESTRES.forEach(
+
+  function(nomeTrimestre) {
+
+
+    var nomeAsset =
+      'precip_stddev_elnino_' +
+      nomeTrimestre;
+
+
+    var assetId =
+      CONFIG.assetDir +
+      '/' +
+      nomeAsset;
+
+
+    var image =
+      resultados[nomeTrimestre]
+        .stdDev
+
+        .set({
+
+          variable:
+            'precipitation_inter_event_stddev',
+
+          trimester:
+            nomeTrimestre,
+
+          unit:
+            'mm',
+
+          event:
+            'strong_el_nino',
+
+          event_years:
+            TRIMESTRES[
+              nomeTrimestre
+            ].anosEventos,
+
+          source:
+            'ECMWF/ERA5_LAND/MONTHLY_AGGR'
+
+        });
+
+
+    Export.image.toAsset({
+
+      image:
+        image,
+
+      description:
+        nomeAsset,
+
+      assetId:
+        assetId,
+
+      region:
+        brasilExport,
+
+      scale:
+        CONFIG.escalaExportacao,
+
+      crs:
+        'EPSG:4326',
+
+      maxPixels:
+        1e13,
+
+      shardSize:
+        128,
+
+      pyramidingPolicy: {
+
+        'stddev_eventos_mm':
+          'mode'
+
+      }
+
+    });
+
+
+    print(
+      'SD export:',
+      assetId
+    );
+
+  }
+
+);
+
+
+// =============================================================================
+// 23. CHECK
 // =============================================================================
 
 print(
-  'DJF',
-  anomalias.DJF
+  'DJF anomaly',
+  resultados.DJF.anomaly
 );
 
 print(
-  'MAM',
-  anomalias.MAM
-);
-
-print(
-  'JJA',
-  anomalias.JJA
-);
-
-print(
-  'SON',
-  anomalias.SON
+  'DJF SD',
+  resultados.DJF.stdDev
 );
 
 
 print(
-  'As quatro tasks devem aparecer na aba Tasks.'
+  'MAM anomaly',
+  resultados.MAM.anomaly
+);
+
+print(
+  'MAM SD',
+  resultados.MAM.stdDev
+);
+
+
+print(
+  'JJA anomaly',
+  resultados.JJA.anomaly
+);
+
+print(
+  'JJA SD',
+  resultados.JJA.stdDev
+);
+
+
+print(
+  'SON anomaly',
+  resultados.SON.anomaly
+);
+
+print(
+  'SON SD',
+  resultados.SON.stdDev
+);
+
+
+print(
+  'Exports configured: 4 anomaly + 4 SD.'
 );

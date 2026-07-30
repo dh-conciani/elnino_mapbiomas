@@ -1,28 +1,36 @@
 /********************************************************************************
  * INSPEÇÃO — ANOMALIAS TRIMESTRAIS DE PRECIPITAÇÃO / EL NIÑO
  *
- * Assets já processados:
+ * Loads the previously exported anomaly assets.
  *
- *   precip_anomaly_elnino_DJF
- *   precip_anomaly_elnino_MAM
- *   precip_anomaly_elnino_JJA
- *   precip_anomaly_elnino_SON
+ * - Masks visualization to Brazil
+ * - Displays MapBiomas biome boundaries
+ * - Uses the same visualization range for all trimesters
+ * - Adds anomaly legend
  *
- * Unidade:
- *   mm por trimestre
+ * Unit:
+ *   mm per trimester
  *
- * Climatologia original:
+ * Climatology:
  *   1991–2020
  ********************************************************************************/
 
 
 // =============================================================================
-// 1. ASSETS
+// 1. ASSET DIRECTORIES
 // =============================================================================
 
 var ASSET_DIR =
   'projects/mapbiomas-brazil/assets/DEGRADATION/COLLECTION-10/ELNINO';
 
+
+var BIOMES_ASSET =
+  'projects/mapbiomas-workspace/AUXILIAR/bioma_2025_e250k_5kbuffer';
+
+
+// =============================================================================
+// 2. LOAD PRECIPITATION ANOMALY ASSETS
+// =============================================================================
 
 var anomaliaDJF = ee.Image(
   ASSET_DIR + '/precip_anomaly_elnino_DJF'
@@ -42,15 +50,17 @@ var anomaliaSON = ee.Image(
 
 
 // =============================================================================
-// 2. BRASIL E ESTADOS
+// 3. BRAZIL BOUNDARY
 // =============================================================================
+
+// Use Brazil administrative boundary only for masking the anomaly images.
 
 var paises = ee.FeatureCollection(
   'FAO/GAUL/2015/level0'
 );
 
 
-var brasil = ee.Feature(
+var brasilFeature = ee.Feature(
   paises
     .filter(
       ee.Filter.eq(
@@ -59,18 +69,10 @@ var brasil = ee.Feature(
       )
     )
     .first()
-).geometry();
-
-
-var estados = ee.FeatureCollection(
-  'FAO/GAUL/2015/level1'
-)
-.filter(
-  ee.Filter.eq(
-    'ADM0_NAME',
-    'Brazil'
-  )
 );
+
+
+var brasil = brasilFeature.geometry();
 
 
 Map.centerObject(
@@ -80,7 +82,50 @@ Map.centerObject(
 
 
 // =============================================================================
-// 3. VISUALIZAÇÃO
+// 4. MASK ANOMALIES TO BRAZIL
+// =============================================================================
+
+/*
+ * The original exported ee.Images remain untouched.
+ *
+ * These versions are only for inspection.
+ */
+
+var djfBrasil = anomaliaDJF
+  .clip(brasil);
+
+var mamBrasil = anomaliaMAM
+  .clip(brasil);
+
+var jjaBrasil = anomaliaJJA
+  .clip(brasil);
+
+var sonBrasil = anomaliaSON
+  .clip(brasil);
+
+
+// =============================================================================
+// 5. MAPBIOMAS BIOMES
+// =============================================================================
+
+var biomas = ee.FeatureCollection(
+  BIOMES_ASSET
+);
+
+
+print(
+  'Biomes:',
+  biomas
+);
+
+print(
+  'Example biome feature:',
+  biomas.first()
+);
+
+
+// =============================================================================
+// 6. ANOMALY VISUALIZATION
 // =============================================================================
 
 var PALETA_ANOMALIA = [
@@ -116,11 +161,11 @@ var VIS_ANOMALIA = {
 
 
 // =============================================================================
-// 4. MAPAS — TODOS OS TRIMESTRES
+// 7. ADD TRIMESTERS
 // =============================================================================
 
 Map.addLayer(
-  anomaliaDJF,
+  djfBrasil,
   VIS_ANOMALIA,
   '01 | DJF — El Niño precipitation anomaly',
   true
@@ -128,7 +173,7 @@ Map.addLayer(
 
 
 Map.addLayer(
-  anomaliaMAM,
+  mamBrasil,
   VIS_ANOMALIA,
   '02 | MAM — El Niño precipitation anomaly',
   false
@@ -136,7 +181,7 @@ Map.addLayer(
 
 
 Map.addLayer(
-  anomaliaJJA,
+  jjaBrasil,
   VIS_ANOMALIA,
   '03 | JJA — El Niño precipitation anomaly',
   false
@@ -144,7 +189,7 @@ Map.addLayer(
 
 
 Map.addLayer(
-  anomaliaSON,
+  sonBrasil,
   VIS_ANOMALIA,
   '04 | SON — El Niño precipitation anomaly',
   false
@@ -152,55 +197,48 @@ Map.addLayer(
 
 
 // =============================================================================
-// 5. LIMITES ESTADUAIS
+// 8. BIOME BOUNDARIES
 // =============================================================================
 
-var linhasEstados = ee.Image(0)
+/*
+ * Draw only the outlines.
+ *
+ * The 5 km buffer in the biome asset therefore does not affect
+ * the precipitation mask.
+ */
+
+var linhasBiomas = ee.Image(0)
   .byte()
   .paint({
-
-    featureCollection:
-      estados,
-
-    color:
-      1,
-
-    width:
-      1
-
+    featureCollection: biomas,
+    color: 1,
+    width: 2
   })
   .selfMask();
 
 
 Map.addLayer(
-  linhasEstados,
+  linhasBiomas,
   {
-    palette: ['555555']
+    palette: ['333333']
   },
-  'State boundaries',
+  'Biome boundaries',
   true
 );
 
 
 // =============================================================================
-// 6. LIMITE DO BRASIL
+// 9. BRAZIL NATIONAL BOUNDARY
 // =============================================================================
 
 var linhaBrasil = ee.Image(0)
   .byte()
   .paint({
-
-    featureCollection:
-      ee.FeatureCollection([
-        ee.Feature(brasil)
-      ]),
-
-    color:
-      1,
-
-    width:
-      2
-
+    featureCollection: ee.FeatureCollection([
+      brasilFeature
+    ]),
+    color: 1,
+    width: 2
   })
   .selfMask();
 
@@ -216,7 +254,7 @@ Map.addLayer(
 
 
 // =============================================================================
-// 7. LEGENDA
+// 10. LEGEND
 // =============================================================================
 
 function adicionarLegenda() {
@@ -239,9 +277,7 @@ function adicionarLegenda() {
   });
 
 
-  // ---------------------------------------------------------------------------
-  // Título
-  // ---------------------------------------------------------------------------
+  // Title
 
   painel.add(
 
@@ -268,9 +304,7 @@ function adicionarLegenda() {
   );
 
 
-  // ---------------------------------------------------------------------------
-  // Unidade
-  // ---------------------------------------------------------------------------
+  // Unit
 
   painel.add(
 
@@ -293,10 +327,6 @@ function adicionarLegenda() {
 
   );
 
-
-  // ---------------------------------------------------------------------------
-  // Cores
-  // ---------------------------------------------------------------------------
 
   var cores = [
 
@@ -386,11 +416,8 @@ function adicionarLegenda() {
       ui.Panel({
 
         widgets: [
-
           caixaCor,
-
           texto
-
         ],
 
         layout:
@@ -405,9 +432,7 @@ function adicionarLegenda() {
   }
 
 
-  // ---------------------------------------------------------------------------
-  // Informação adicional
-  // ---------------------------------------------------------------------------
+  // Footer
 
   painel.add(
 
@@ -445,7 +470,7 @@ adicionarLegenda();
 
 
 // =============================================================================
-// 8. INSPEÇÃO DOS ASSETS NO CONSOLE
+// 11. CONSOLE INSPECTION
 // =============================================================================
 
 print(
@@ -469,14 +494,15 @@ print(
 );
 
 
-// Projection / pixel information
-
 print(
-  'DJF projection',
+  'Projection:',
   anomaliaDJF.projection()
 );
 
+
 print(
-  'DJF nominal scale',
-  anomaliaDJF.projection().nominalScale()
+  'Nominal scale:',
+  anomaliaDJF
+    .projection()
+    .nominalScale()
 );

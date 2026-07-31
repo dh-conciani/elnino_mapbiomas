@@ -1,62 +1,90 @@
 /********************************************************************************
- * PRECIPITATION ANOMALY — STRONG EL NIÑO EVENTS
+ * EL NIÑO FORTE:
+ * ANOMALIA DE PRECIPITAÇÃO + ANOMALIA DA TSM NO MESMO MAPA
  *
+ * PRECIPITAÇÃO
+ * ------------
  * ERA5-Land Monthly Aggregated
  * ECMWF/ERA5_LAND/MONTHLY_AGGR
  *
- * OBJECTIVE
- * ---------
- * Compare precipitation observed during EACH strong El Niño event against
- * a reference climatology composed of years without strong El Niño.
+ * TEMPERATURA DA SUPERFÍCIE DO MAR (TSM)
+ * --------------------------------------
+ * NOAA OISST V2.1
+ * NOAA/CDR/OISST/V2_1
  *
  *
- * STRONG EL NIÑO EVENTS
- * ---------------------
- *
- *   1982/83
- *   1997/98
- *   2015/16
- *   2023/24
- *
- *
- * REFERENCE PERIOD
- * ----------------
- *
- *   1991–2020
- *
- * Strong El Niño seasons occurring inside the reference period are excluded.
- *
- *
- * ANOMALY
+ * EVENTOS
  * -------
- *
- *   anomaly(event, trimester)
- *
- *       =
- *
- *   precipitation(event, trimester)
- *
- *       -
- *
- *   mean precipitation(reference years, trimester)
+ * 1982/83
+ * 1997/98
+ * 2015/16
+ * 2023/24
  *
  *
- * PRODUCTS
- * --------
+ * REFERÊNCIA DA PRECIPITAÇÃO
+ * --------------------------
+ * 1991–2020
  *
- * 16 event-specific precipitation anomaly maps:
+ * Os períodos associados aos eventos fortes de El Niño
+ * dentro da referência são excluídos.
  *
- *   4 El Niño events × 4 trimesters
  *
- * Plus:
+ * ANOMALIA DE PRECIPITAÇÃO
+ * ------------------------
  *
- *   4 inter-event standard deviation maps
+ * precipitação sazonal do evento
+ *
+ * menos
+ *
+ * precipitação média da referência sem El Niño forte
+ *
+ *
+ * ANOMALIA DA TSM
+ * ---------------
+ *
+ * Média sazonal da anomalia diária da TSM do NOAA OISST.
+ *
+ * Região Niño 3.4:
+ *
+ * 5°S–5°N
+ * 170°W–120°W
+ *
+ *
+ * FACET
+ * -----
+ *
+ * linhas:
+ *   eventos de El Niño
+ *
+ * colunas:
+ *   DJF | MAM | JJA | SON
+ *
+ *
+ * CADA MAPA MOSTRA SIMULTANEAMENTE:
+ *
+ * 1. Pacífico:
+ *      anomalia da TSM
+ *      roxo -> branco -> laranja
+ *
+ * 2. Brasil:
+ *      anomalia da precipitação
+ *      vermelho -> branco -> azul
+ *
+ * 3. Região Niño 3.4
+ *
+ * 4. Valor médio da anomalia da TSM em Niño 3.4
+ *
+ *
+ * IMPORTANTE
+ * ----------
+ *
+ * A métrica Niño 3.4 calculada com OISST NÃO é o ONI oficial da NOAA.
  *
  ********************************************************************************/
 
 
 // =============================================================================
-// 1. CONFIG
+// 1. CONFIGURAÇÃO
 // =============================================================================
 
 var CONFIG = {
@@ -70,6 +98,9 @@ var CONFIG = {
   escalaExportacao:
     11132,
 
+  escalaSST:
+    27830,
+
   assetDir:
     'projects/mapbiomas-brazil/assets/DEGRADATION/COLLECTION-10/ELNINO'
 
@@ -77,29 +108,8 @@ var CONFIG = {
 
 
 // =============================================================================
-// 2. STRONG EL NIÑO EVENTS
+// 2. EVENTOS DE EL NIÑO
 // =============================================================================
-
-/*
- * The year stored for each trimester is the year in which
- * that seasonal period starts.
- *
- * DJF:
- * year = December year
- *
- * Example:
- *
- * DJF 2023/24 =
- * December 2023
- * January 2024
- * February 2024
- *
- *
- * For SON the year is the first year of the El Niño event.
- *
- * For MAM and JJA the year is the second year.
- */
-
 
 var EVENTOS = [
 
@@ -198,63 +208,103 @@ var EVENTOS = [
 
 
 // =============================================================================
-// 3. TRIMESTERS
+// 3. TRIMESTRES
 // =============================================================================
+
+/*
+ * Ordem visual do FACET:
+ *
+ * DJF | MAM | JJA | SON
+ *
+ *
+ * Ordem cronológica usada no GRÁFICO:
+ *
+ * SON -> DJF -> MAM -> JJA
+ */
+
 
 var TRIMESTRES = {
 
   DJF: {
 
-    meses:
-      [12, 1, 2],
-
     mesInicial:
       12,
 
-    anosEventos:
-      [1982, 1997, 2015, 2023]
+    label:
+      'Dez–Jan–Fev',
+
+    ordemGrafico:
+      2,
+
+    anosEventos: [
+      1982,
+      1997,
+      2015,
+      2023
+    ]
 
   },
 
 
   MAM: {
 
-    meses:
-      [3, 4, 5],
-
     mesInicial:
       3,
 
-    anosEventos:
-      [1983, 1998, 2016, 2024]
+    label:
+      'Mar–Abr–Mai',
+
+    ordemGrafico:
+      3,
+
+    anosEventos: [
+      1983,
+      1998,
+      2016,
+      2024
+    ]
 
   },
 
 
   JJA: {
 
-    meses:
-      [6, 7, 8],
-
     mesInicial:
       6,
 
-    anosEventos:
-      [1983, 1998, 2016, 2024]
+    label:
+      'Jun–Jul–Ago',
+
+    ordemGrafico:
+      4,
+
+    anosEventos: [
+      1983,
+      1998,
+      2016,
+      2024
+    ]
 
   },
 
 
   SON: {
 
-    meses:
-      [9, 10, 11],
-
     mesInicial:
       9,
 
-    anosEventos:
-      [1982, 1997, 2015, 2023]
+    label:
+      'Set–Out–Nov',
+
+    ordemGrafico:
+      1,
+
+    anosEventos: [
+      1982,
+      1997,
+      2015,
+      2023
+    ]
 
   }
 
@@ -272,7 +322,7 @@ var NOMES_TRIMESTRES = [
 
 
 // =============================================================================
-// 4. BRAZIL
+// 4. BRASIL
 // =============================================================================
 
 var paises = ee.FeatureCollection(
@@ -308,8 +358,6 @@ var brasilExport =
   );
 
 
-// States only for visual reference.
-
 var estados = ee.FeatureCollection(
   'FAO/GAUL/2015/level1'
 )
@@ -324,86 +372,188 @@ var estados = ee.FeatureCollection(
 );
 
 
-Map.centerObject(
-  brasil,
-  4
+// =============================================================================
+// 5. REGIÃO NIÑO 3.4
+// =============================================================================
+
+var nino34 = ee.Geometry.Rectangle(
+
+  [
+    -170,
+    -5,
+    -120,
+    5
+  ],
+
+  null,
+
+  false
+
 );
 
 
 // =============================================================================
-// 5. ERA5-LAND
+// 6. REGIÃO DO PACÍFICO PARA A TSM
+// =============================================================================
+
+var regiaoPacifico = ee.Geometry.Rectangle(
+
+  [
+    -180,
+    -30,
+    -70,
+    30
+  ],
+
+  null,
+
+  false
+
+);
+
+
+// =============================================================================
+// 7. EXTENSÃO DO MAPA COMBINADO
 // =============================================================================
 
 /*
- * The collection must now contain the 2023/24 event.
+ * O mapa precisa mostrar:
  *
- * Latest seasonal period used:
- *
- * JJA 2024 =
- *
- * June 2024
- * July 2024
- * August 2024
- *
- * We load through January 2025 for safety.
+ * Pacífico tropical + América do Sul.
  */
 
+var regiaoMapaCombinado = ee.Geometry.Rectangle(
+
+  [
+    -180,
+    -40,
+    -30,
+    30
+  ],
+
+  null,
+
+  false
+
+);
+
+
+// =============================================================================
+// 8. ERA5-LAND — PRECIPITAÇÃO
+// =============================================================================
 
 var era5Land = ee.ImageCollection(
   'ECMWF/ERA5_LAND/MONTHLY_AGGR'
 )
 
-  .filterDate(
-    '1981-01-01',
-    '2025-01-01'
-  )
+.filterDate(
+  '1981-01-01',
+  '2025-01-01'
+)
 
-  .select(
-    'total_precipitation_sum'
-  )
+.select(
+  'total_precipitation_sum'
+)
 
-  .map(
+.map(
 
-    function(image) {
-
-
-      // meters -> millimeters
-
-      var precipitacao = image
-
-        .multiply(
-          1000
-        )
-
-        // Remove small negative numerical artifacts.
-        .max(
-          0
-        )
-
-        .rename(
-          'precipitacao_mm'
-        );
+  function(image) {
 
 
-      return precipitacao
+    return image
 
-        .copyProperties(
+      // metros -> milímetros
 
-          image,
+      .multiply(
+        1000
+      )
 
-          [
-            'system:time_start'
-          ]
+      // Remove pequenos artefatos negativos.
 
-        );
+      .max(
+        0
+      )
 
-    }
+      .rename(
+        'precipitacao_mm'
+      )
 
-  );
+      .copyProperties(
+
+        image,
+
+        [
+          'system:time_start'
+        ]
+
+      );
+
+  }
+
+);
 
 
 // =============================================================================
-// 6. TRIMESTER TOTAL
+// 9. NOAA OISST — TSM
+// =============================================================================
+
+var oisst = ee.ImageCollection(
+  'NOAA/CDR/OISST/V2_1'
+)
+
+.filterDate(
+  '1981-09-01',
+  '2025-01-01'
+)
+
+.filterBounds(
+  regiaoPacifico
+)
+
+.select(
+  'anom'
+)
+
+.map(
+
+  function(image) {
+
+
+    /*
+     * Fator de escala OISST:
+     *
+     * 0.01
+     *
+     * resultado em graus Celsius.
+     */
+
+    return image
+
+      .multiply(
+        0.01
+      )
+
+      .rename(
+        'sst_anomaly_C'
+      )
+
+      .copyProperties(
+
+        image,
+
+        [
+          'system:time_start'
+        ]
+
+      );
+
+  }
+
+);
+
+
+// =============================================================================
+// 10. PRECIPITAÇÃO TOTAL TRIMESTRAL
 // =============================================================================
 
 function calcularTotalTrimestral(
@@ -452,7 +602,7 @@ function calcularTotalTrimestral(
 
 
 // =============================================================================
-// 7. REFERENCE YEARS FOR EACH TRIMESTER
+// 11. ANOS DA REFERÊNCIA
 // =============================================================================
 
 function obterAnosReferencia(
@@ -464,21 +614,6 @@ function obterAnosReferencia(
     TRIMESTRES[
       nomeTrimestre
     ];
-
-
-  /*
-   * Reference:
-   *
-   * 1991–2020
-   *
-   * Strong El Niño seasons are removed.
-   *
-   *
-   * IMPORTANT:
-   *
-   * 2023/24 does NOT need to be removed because it is outside
-   * the 1991–2020 reference period.
-   */
 
 
   return ee.List.sequence(
@@ -501,7 +636,7 @@ function obterAnosReferencia(
 
 
 // =============================================================================
-// 8. REFERENCE COLLECTION
+// 12. COLEÇÃO DE REFERÊNCIA
 // =============================================================================
 
 function criarColecaoReferencia(
@@ -515,14 +650,14 @@ function criarColecaoReferencia(
     ];
 
 
-  var anosReferencia =
+  var anos =
     obterAnosReferencia(
       nomeTrimestre
     );
 
 
-  var imagensReferencia =
-    anosReferencia.map(
+  var imagens =
+    anos.map(
 
       function(ano) {
 
@@ -547,10 +682,7 @@ function criarColecaoReferencia(
             ano,
 
           trimester:
-            nomeTrimestre,
-
-          dataset:
-            'ERA5-Land'
+            nomeTrimestre
 
         });
 
@@ -560,14 +692,14 @@ function criarColecaoReferencia(
 
 
   return ee.ImageCollection.fromImages(
-    imagensReferencia
+    imagens
   );
 
 }
 
 
 // =============================================================================
-// 9. REFERENCE CLIMATOLOGY
+// 13. PRECIPITAÇÃO MÉDIA DA REFERÊNCIA
 // =============================================================================
 
 function calcularMediaReferencia(
@@ -585,35 +717,13 @@ function calcularMediaReferencia(
       'referencia_mm'
     )
 
-    .toFloat()
-
-    .set({
-
-      variable:
-        'reference_precipitation',
-
-      trimester:
-        nomeTrimestre,
-
-      unit:
-        'mm',
-
-      reference_period:
-        '1991-2020',
-
-      reference_type:
-        'years_without_strong_el_nino',
-
-      source:
-        'ECMWF/ERA5_LAND/MONTHLY_AGGR'
-
-    });
+    .toFloat();
 
 }
 
 
 // =============================================================================
-// 10. EVENT-SPECIFIC ANOMALY
+// 14. ANOMALIA DE PRECIPITAÇÃO
 // =============================================================================
 
 function calcularAnomaliaEvento(
@@ -630,8 +740,6 @@ function calcularAnomaliaEvento(
     ];
 
 
-  // Observed precipitation during THIS event.
-
   var observado =
     calcularTotalTrimestral(
 
@@ -642,24 +750,10 @@ function calcularAnomaliaEvento(
     );
 
 
-  // Non-strong-El-Niño reference climatology.
-
   var referencia =
     calcularMediaReferencia(
       nomeTrimestre
     );
-
-
-  /*
-   * ANOMALY =
-   *
-   * event precipitation
-   *
-   * minus
-   *
-   * mean precipitation during reference years
-   * without strong El Niño.
-   */
 
 
   return observado
@@ -685,9 +779,6 @@ function calcularAnomaliaEvento(
       event_label:
         labelEvento,
 
-      event_start_year:
-        anoEvento,
-
       trimester:
         nomeTrimestre,
 
@@ -709,10 +800,239 @@ function calcularAnomaliaEvento(
 
 
 // =============================================================================
-// 11. CALCULATE ALL EVENT-SPECIFIC ANOMALIES
+// 15. IMAGEM TRIMESTRAL DA ANOMALIA DA TSM
+// =============================================================================
+
+function criarImagemSSTTrimestral(
+  anoInicial,
+  mesInicial
+) {
+
+
+  anoInicial =
+    ee.Number(
+      anoInicial
+    );
+
+
+  var inicio = ee.Date.fromYMD(
+
+    anoInicial,
+    mesInicial,
+    1
+
+  );
+
+
+  var fim = inicio.advance(
+    3,
+    'month'
+  );
+
+
+  return oisst
+
+    .filterDate(
+      inicio,
+      fim
+    )
+
+    .mean()
+
+    .rename(
+      'sst_anomaly_C'
+    )
+
+    .toFloat()
+
+    .set({
+
+      start_year:
+        anoInicial,
+
+      start_month:
+        mesInicial,
+
+      unit:
+        'degrees_Celsius',
+
+      source:
+        'NOAA/CDR/OISST/V2_1'
+
+    });
+
+}
+
+
+// =============================================================================
+// 16. MÉDIA DA TSM NA REGIÃO NIÑO 3.4
+// =============================================================================
+
+function calcularSSTNino34Imagem(
+  imagemSST
+) {
+
+
+  var media =
+    imagemSST.reduceRegion({
+
+      reducer:
+        ee.Reducer.mean(),
+
+      geometry:
+        nino34,
+
+      scale:
+        CONFIG.escalaSST,
+
+      bestEffort:
+        true,
+
+      maxPixels:
+        1e8
+
+    })
+
+    .get(
+      'sst_anomaly_C'
+    );
+
+
+  return ee.Number(
+    media
+  );
+
+}
+
+
+// =============================================================================
+// 17. CLASSIFICAÇÃO DA INTENSIDADE — SERVER SIDE
+// =============================================================================
+
+function classificarIntensidadeSST(
+  valor
+) {
+
+
+  valor =
+    ee.Number(
+      valor
+    );
+
+
+  return ee.String(
+
+    ee.Algorithms.If(
+
+      valor.gte(
+        2.0
+      ),
+
+      'Muito forte',
+
+
+      ee.Algorithms.If(
+
+        valor.gte(
+          1.5
+        ),
+
+        'Forte',
+
+
+        ee.Algorithms.If(
+
+          valor.gte(
+            1.0
+          ),
+
+          'Moderado',
+
+
+          ee.Algorithms.If(
+
+            valor.gte(
+              0.5
+            ),
+
+            'Fraco',
+
+            'Abaixo do limiar de El Niño'
+
+          )
+
+        )
+
+      )
+
+    )
+
+  );
+
+}
+
+
+// =============================================================================
+// 18. CLASSIFICAÇÃO DA INTENSIDADE — INTERFACE
+// =============================================================================
+
+function classificarIntensidadeClient(
+  valor
+) {
+
+
+  if (
+    valor >= 2.0
+  ) {
+
+    return 'MUITO FORTE';
+
+  }
+
+
+  if (
+    valor >= 1.5
+  ) {
+
+    return 'FORTE';
+
+  }
+
+
+  if (
+    valor >= 1.0
+  ) {
+
+    return 'MODERADO';
+
+  }
+
+
+  if (
+    valor >= 0.5
+  ) {
+
+    return 'FRACO';
+
+  }
+
+
+  return 'ABAIXO DO LIMIAR DE EL NIÑO';
+
+}
+
+
+// =============================================================================
+// 19. CALCULAR TODOS OS PRODUTOS
 // =============================================================================
 
 var resultados = {};
+
+var resultadosSSTValor = {};
+
+var resultadosSSTImagem = {};
+
+var featuresSST = [];
 
 
 EVENTOS.forEach(
@@ -725,30 +1045,151 @@ EVENTOS.forEach(
     ] = {};
 
 
+    resultadosSSTValor[
+      evento.nome
+    ] = {};
+
+
+    resultadosSSTImagem[
+      evento.nome
+    ] = {};
+
+
     NOMES_TRIMESTRES.forEach(
 
       function(nomeTrimestre) {
 
 
-        var anoEvento =
+        var config =
+          TRIMESTRES[
+            nomeTrimestre
+          ];
+
+
+        var ano =
           evento[
             nomeTrimestre
           ];
+
+
+        // ---------------------------------------------------------------------
+        // Campo espacial da TSM
+        // ---------------------------------------------------------------------
+
+        var imagemSST =
+          criarImagemSSTTrimestral(
+
+            ano,
+
+            config.mesInicial
+
+          );
+
+
+        // ---------------------------------------------------------------------
+        // Média em Niño 3.4
+        // ---------------------------------------------------------------------
+
+        var sstNino34 =
+          calcularSSTNino34Imagem(
+            imagemSST
+          );
+
+
+        var intensidade =
+          classificarIntensidadeSST(
+            sstNino34
+          );
+
+
+        resultadosSSTImagem[
+          evento.nome
+        ][
+          nomeTrimestre
+        ] = imagemSST;
+
+
+        resultadosSSTValor[
+          evento.nome
+        ][
+          nomeTrimestre
+        ] = sstNino34;
+
+
+        // ---------------------------------------------------------------------
+        // Anomalia de precipitação
+        // ---------------------------------------------------------------------
+
+        var precipitacao =
+          calcularAnomaliaEvento(
+
+            nomeTrimestre,
+
+            ano,
+
+            evento.nome,
+
+            evento.label
+
+          )
+
+          .set({
+
+            nino34_sst_anomaly_C:
+              sstNino34,
+
+            nino34_intensity:
+              intensidade
+
+          });
 
 
         resultados[
           evento.nome
         ][
           nomeTrimestre
-        ] = calcularAnomaliaEvento(
+        ] = precipitacao;
 
-          nomeTrimestre,
 
-          anoEvento,
+        // ---------------------------------------------------------------------
+        // Tabela da TSM
+        // ---------------------------------------------------------------------
 
-          evento.nome,
+        featuresSST.push(
 
-          evento.label
+          ee.Feature(
+
+            null,
+
+            {
+
+              event:
+                evento.nome,
+
+              event_label:
+                evento.label,
+
+              trimester:
+                nomeTrimestre,
+
+              period_label:
+                config.label,
+
+              chart_order:
+                config.ordemGrafico,
+
+              year:
+                ano,
+
+              sst_anomaly_C:
+                sstNino34,
+
+              intensity:
+                intensidade
+
+            }
+
+          )
 
         );
 
@@ -761,8 +1202,14 @@ EVENTOS.forEach(
 );
 
 
+var tabelaSST =
+  ee.FeatureCollection(
+    featuresSST
+  );
+
+
 // =============================================================================
-// 12. COLLECTION OF EVENT ANOMALIES FOR ONE TRIMESTER
+// 20. COLEÇÃO DAS ANOMALIAS DE PRECIPITAÇÃO
 // =============================================================================
 
 function criarColecaoAnomaliasEventos(
@@ -795,10 +1242,10 @@ function criarColecaoAnomaliasEventos(
 
 
 // =============================================================================
-// 13. MEAN ANOMALY ACROSS THE FOUR EVENTS
+// 21. MÉDIA DAS ANOMALIAS DE PRECIPITAÇÃO
 // =============================================================================
 
-function calcularMediaAnomaliasEventos(
+function calcularMediaAnomalias(
   nomeTrimestre
 ) {
 
@@ -813,57 +1260,18 @@ function calcularMediaAnomaliasEventos(
       'media_anomalias_mm'
     )
 
-    .toFloat()
-
-    .set({
-
-      variable:
-        'mean_precipitation_anomaly_strong_el_nino',
-
-      trimester:
-        nomeTrimestre,
-
-      unit:
-        'mm',
-
-      events:
-        '1982/83, 1997/98, 2015/16, 2023/24',
-
-      reference:
-        '1991-2020 years without strong El Nino',
-
-      source:
-        'ECMWF/ERA5_LAND/MONTHLY_AGGR'
-
-    });
+    .toFloat();
 
 }
 
 
 // =============================================================================
-// 14. INTER-EVENT STANDARD DEVIATION
+// 22. DESVIO-PADRÃO ENTRE EVENTOS
 // =============================================================================
 
 function calcularDesvioPadraoAnomalias(
   nomeTrimestre
 ) {
-
-
-  /*
-   * Standard deviation among:
-   *
-   * 1982/83
-   * 1997/98
-   * 2015/16
-   * 2023/24
-   *
-   *
-   * LOW SD:
-   * similar precipitation anomaly among events.
-   *
-   * HIGH SD:
-   * strong differences among events.
-   */
 
 
   return criarColecaoAnomaliasEventos(
@@ -878,38 +1286,13 @@ function calcularDesvioPadraoAnomalias(
       'stddev_anomalias_mm'
     )
 
-    .toFloat()
-
-    .set({
-
-      variable:
-        'precipitation_anomaly_inter_event_stddev',
-
-      trimester:
-        nomeTrimestre,
-
-      unit:
-        'mm',
-
-      n_events:
-        4,
-
-      events:
-        '1982/83, 1997/98, 2015/16, 2023/24',
-
-      reference:
-        '1991-2020 years without strong El Nino',
-
-      source:
-        'ECMWF/ERA5_LAND/MONTHLY_AGGR'
-
-    });
+    .toFloat();
 
 }
 
 
 // =============================================================================
-// 15. SUMMARY PRODUCTS
+// 23. PRODUTOS RESUMIDOS
 // =============================================================================
 
 var resultadosMedia = {};
@@ -924,7 +1307,7 @@ NOMES_TRIMESTRES.forEach(
 
     resultadosMedia[
       nomeTrimestre
-    ] = calcularMediaAnomaliasEventos(
+    ] = calcularMediaAnomalias(
       nomeTrimestre
     );
 
@@ -941,8 +1324,19 @@ NOMES_TRIMESTRES.forEach(
 
 
 // =============================================================================
-// 16. VISUALIZATION — PRECIPITATION ANOMALY
+// 24. PALETA — ANOMALIA DE PRECIPITAÇÃO
 // =============================================================================
+
+/*
+ * Vermelho:
+ * déficit de precipitação
+ *
+ * Branco:
+ * aproximadamente zero
+ *
+ * Azul:
+ * excesso de precipitação
+ */
 
 var VIS_ANOMALIA = {
 
@@ -959,7 +1353,6 @@ var VIS_ANOMALIA = {
     'd6604d',
     'f4a582',
     'fddbc7',
-    'fff7bc',
 
     'ffffff',
 
@@ -975,29 +1368,46 @@ var VIS_ANOMALIA = {
 
 
 // =============================================================================
-// 17. VISUALIZATION — STANDARD DEVIATION
+// 25. PALETA — ANOMALIA DA TSM
 // =============================================================================
 
-var VIS_STDDEV = {
+/*
+ * PALETA DIFERENTE DA PRECIPITAÇÃO.
+ *
+ * Roxo:
+ * TSM mais fria
+ *
+ * Branco:
+ * aproximadamente zero
+ *
+ * Laranja:
+ * TSM mais quente
+ */
+
+var VIS_SST = {
 
   min:
-    0,
+    -3,
 
   max:
-    200,
+    3,
 
   palette: [
 
-    'ffffff',
-    'ffffcc',
-    'ffeda0',
-    'fed976',
-    'feb24c',
-    'fd8d3c',
-    'fc4e2a',
-    'e31a1c',
-    'bd0026',
-    '800026'
+    '3f007d',
+    '54278f',
+    '756bb1',
+    '9e9ac8',
+    'cbc9e2',
+
+    'f7f7f7',
+
+    'fee6ce',
+    'fdd0a2',
+    'fdae6b',
+    'f16913',
+    'd94801',
+    '8c2d04'
 
   ]
 
@@ -1005,275 +1415,7 @@ var VIS_STDDEV = {
 
 
 // =============================================================================
-// 18. MAPS — 1982/83
-// =============================================================================
-
-Map.addLayer(
-  resultados['1982_83'].DJF.clip(brasilExport),
-  VIS_ANOMALIA,
-  '01 | 1982/83 — DJF',
-  true
-);
-
-
-Map.addLayer(
-  resultados['1982_83'].MAM.clip(brasilExport),
-  VIS_ANOMALIA,
-  '02 | 1982/83 — MAM',
-  false
-);
-
-
-Map.addLayer(
-  resultados['1982_83'].JJA.clip(brasilExport),
-  VIS_ANOMALIA,
-  '03 | 1982/83 — JJA',
-  false
-);
-
-
-Map.addLayer(
-  resultados['1982_83'].SON.clip(brasilExport),
-  VIS_ANOMALIA,
-  '04 | 1982/83 — SON',
-  false
-);
-
-
-// =============================================================================
-// 19. MAPS — 1997/98
-// =============================================================================
-
-Map.addLayer(
-  resultados['1997_98'].DJF.clip(brasilExport),
-  VIS_ANOMALIA,
-  '05 | 1997/98 — DJF',
-  false
-);
-
-
-Map.addLayer(
-  resultados['1997_98'].MAM.clip(brasilExport),
-  VIS_ANOMALIA,
-  '06 | 1997/98 — MAM',
-  false
-);
-
-
-Map.addLayer(
-  resultados['1997_98'].JJA.clip(brasilExport),
-  VIS_ANOMALIA,
-  '07 | 1997/98 — JJA',
-  false
-);
-
-
-Map.addLayer(
-  resultados['1997_98'].SON.clip(brasilExport),
-  VIS_ANOMALIA,
-  '08 | 1997/98 — SON',
-  false
-);
-
-
-// =============================================================================
-// 20. MAPS — 2015/16
-// =============================================================================
-
-Map.addLayer(
-  resultados['2015_16'].DJF.clip(brasilExport),
-  VIS_ANOMALIA,
-  '09 | 2015/16 — DJF',
-  false
-);
-
-
-Map.addLayer(
-  resultados['2015_16'].MAM.clip(brasilExport),
-  VIS_ANOMALIA,
-  '10 | 2015/16 — MAM',
-  false
-);
-
-
-Map.addLayer(
-  resultados['2015_16'].JJA.clip(brasilExport),
-  VIS_ANOMALIA,
-  '11 | 2015/16 — JJA',
-  false
-);
-
-
-Map.addLayer(
-  resultados['2015_16'].SON.clip(brasilExport),
-  VIS_ANOMALIA,
-  '12 | 2015/16 — SON',
-  false
-);
-
-
-// =============================================================================
-// 21. MAPS — 2023/24
-// =============================================================================
-
-Map.addLayer(
-  resultados['2023_24'].DJF.clip(brasilExport),
-  VIS_ANOMALIA,
-  '13 | 2023/24 — DJF',
-  false
-);
-
-
-Map.addLayer(
-  resultados['2023_24'].MAM.clip(brasilExport),
-  VIS_ANOMALIA,
-  '14 | 2023/24 — MAM',
-  false
-);
-
-
-Map.addLayer(
-  resultados['2023_24'].JJA.clip(brasilExport),
-  VIS_ANOMALIA,
-  '15 | 2023/24 — JJA',
-  false
-);
-
-
-Map.addLayer(
-  resultados['2023_24'].SON.clip(brasilExport),
-  VIS_ANOMALIA,
-  '16 | 2023/24 — SON',
-  false
-);
-
-
-// =============================================================================
-// 22. MEAN ANOMALY OF FOUR EVENTS
-// =============================================================================
-
-Map.addLayer(
-  resultadosMedia.DJF.clip(brasilExport),
-  VIS_ANOMALIA,
-  '17 | Mean anomaly — DJF',
-  false
-);
-
-
-Map.addLayer(
-  resultadosMedia.MAM.clip(brasilExport),
-  VIS_ANOMALIA,
-  '18 | Mean anomaly — MAM',
-  false
-);
-
-
-Map.addLayer(
-  resultadosMedia.JJA.clip(brasilExport),
-  VIS_ANOMALIA,
-  '19 | Mean anomaly — JJA',
-  false
-);
-
-
-Map.addLayer(
-  resultadosMedia.SON.clip(brasilExport),
-  VIS_ANOMALIA,
-  '20 | Mean anomaly — SON',
-  false
-);
-
-
-// =============================================================================
-// 23. STANDARD DEVIATION MAPS
-// =============================================================================
-
-Map.addLayer(
-  resultadosStdDev.DJF.clip(brasilExport),
-  VIS_STDDEV,
-  '21 | Inter-event SD — DJF',
-  false
-);
-
-
-Map.addLayer(
-  resultadosStdDev.MAM.clip(brasilExport),
-  VIS_STDDEV,
-  '22 | Inter-event SD — MAM',
-  false
-);
-
-
-Map.addLayer(
-  resultadosStdDev.JJA.clip(brasilExport),
-  VIS_STDDEV,
-  '23 | Inter-event SD — JJA',
-  false
-);
-
-
-Map.addLayer(
-  resultadosStdDev.SON.clip(brasilExport),
-  VIS_STDDEV,
-  '24 | Inter-event SD — SON',
-  false
-);
-
-
-// =============================================================================
-// 24. REFERENCE CLIMATOLOGY
-// =============================================================================
-
-var VIS_REFERENCIA = {
-
-  min:
-    0,
-
-  max:
-    1000,
-
-  palette: [
-
-    'ffffcc',
-    'c2e699',
-    '78c679',
-    '31a354',
-    '006837'
-
-  ]
-
-};
-
-
-NOMES_TRIMESTRES.forEach(
-
-  function(nomeTrimestre) {
-
-
-    Map.addLayer(
-
-      calcularMediaReferencia(
-        nomeTrimestre
-      ).clip(
-        brasilExport
-      ),
-
-      VIS_REFERENCIA,
-
-      'Reference precipitation — ' +
-      nomeTrimestre,
-
-      false
-
-    );
-
-  }
-
-);
-
-
-// =============================================================================
-// 25. STATE BOUNDARIES
+// 26. LIMITES ESTADUAIS
 // =============================================================================
 
 var linhasEstados = ee.Image()
@@ -1296,126 +1438,221 @@ var linhasEstados = ee.Image()
   .selfMask();
 
 
-Map.addLayer(
+// =============================================================================
+// 27. LIMITES DOS PAÍSES
+// =============================================================================
 
-  linhasEstados,
+var linhasPaises = ee.Image()
 
-  {
+  .byte()
 
-    palette:
-      ['555555']
+  .paint({
 
-  },
+    featureCollection:
+      paises,
 
-  'State boundaries',
+    color:
+      1,
 
-  true
+    width:
+      1
 
-);
+  })
+
+  .selfMask();
 
 
 // =============================================================================
-// 26. GENERIC LEGEND ROW
+// 28. CONTORNO DA REGIÃO NIÑO 3.4
 // =============================================================================
 
-function adicionarLinhaLegenda(
-  painel,
-  cor,
-  texto
+var bordaNino34 = ee.Image()
+
+  .byte()
+
+  .paint({
+
+    featureCollection:
+      ee.FeatureCollection([
+
+        ee.Feature(
+          nino34
+        )
+
+      ]),
+
+    color:
+      1,
+
+    width:
+      2
+
+  })
+
+  .selfMask();
+
+
+// =============================================================================
+// 29. CRIAR UM MAPA DO FACET
+//
+// IMPORTANTE:
+//
+// SST e precipitação aparecem NO MESMO MAPA.
+// =============================================================================
+
+function criarMapaFacet(
+  evento,
+  nomeTrimestre
 ) {
 
 
-  var caixaCor = ui.Label({
-
-    style: {
-
-      backgroundColor:
-        '#' + cor,
-
-      padding:
-        '8px',
-
-      margin:
-        '0 6px 3px 0',
-
-      border:
-        '1px solid #999999'
-
-    }
-
-  });
+  var mapa =
+    ui.Map();
 
 
-  var label = ui.Label({
-
-    value:
-      texto,
-
-    style: {
-
-      fontSize:
-        '11px',
-
-      margin:
-        '0 0 3px 0'
-
-    }
-
-  });
+  mapa.setControlVisibility(
+    false
+  );
 
 
-  painel.add(
+  // ===========================================================================
+  // 1. ANOMALIA DA TSM — PACÍFICO
+  // ===========================================================================
 
-    ui.Panel({
+  var imagemSST =
 
-      widgets: [
-        caixaCor,
-        label
-      ],
+    resultadosSSTImagem[
+      evento.nome
+    ][
+      nomeTrimestre
+    ]
 
-      layout:
-        ui.Panel.Layout.Flow(
-          'horizontal'
-        )
+    .clip(
+      regiaoPacifico
+    );
 
-    })
+
+  mapa.addLayer(
+
+    imagemSST,
+
+    VIS_SST,
+
+    'Anomalia da TSM',
+
+    true
 
   );
 
-}
+
+  // ===========================================================================
+  // 2. ANOMALIA DE PRECIPITAÇÃO — BRASIL
+  // ===========================================================================
+
+  var imagemPrecipitacao =
+
+    resultados[
+      evento.nome
+    ][
+      nomeTrimestre
+    ]
+
+    .clip(
+      brasilExport
+    );
 
 
-// =============================================================================
-// 27. ANOMALY LEGEND
-// =============================================================================
+  mapa.addLayer(
 
-function adicionarLegendaAnomalia() {
+    imagemPrecipitacao,
 
+    VIS_ANOMALIA,
 
-  var painel = ui.Panel({
+    'Anomalia de precipitação',
 
-    style: {
+    true
 
-      position:
-        'bottom-left',
-
-      padding:
-        '8px 12px',
-
-      backgroundColor:
-        'ffffff'
-
-    }
-
-  });
+  );
 
 
-  painel.add(
+  // ===========================================================================
+  // 3. LIMITES DOS PAÍSES
+  // ===========================================================================
 
+  mapa.addLayer(
+
+    linhasPaises,
+
+    {
+
+      palette:
+        ['777777']
+
+    },
+
+    'Limites dos países',
+
+    true
+
+  );
+
+
+  // ===========================================================================
+  // 4. LIMITES ESTADUAIS DO BRASIL
+  // ===========================================================================
+
+  mapa.addLayer(
+
+    linhasEstados,
+
+    {
+
+      palette:
+        ['333333']
+
+    },
+
+    'Limites estaduais',
+
+    true
+
+  );
+
+
+  // ===========================================================================
+  // 5. REGIÃO NIÑO 3.4
+  // ===========================================================================
+
+  mapa.addLayer(
+
+    bordaNino34,
+
+    {
+
+      palette:
+        ['111111']
+
+    },
+
+    'Região Niño 3.4',
+
+    true
+
+  );
+
+
+  // ===========================================================================
+  // 6. IDENTIFICAÇÃO DO EVENTO / PERÍODO
+  // ===========================================================================
+
+  var labelPeriodo =
     ui.Label({
 
       value:
-        'El Niño precipitation anomaly',
+
+        evento.label +
+        ' | ' +
+        nomeTrimestre,
 
       style: {
 
@@ -1423,7 +1660,411 @@ function adicionarLegendaAnomalia() {
           'bold',
 
         fontSize:
-          '14px'
+          '11px',
+
+        backgroundColor:
+          'ffffff',
+
+        padding:
+          '3px 5px',
+
+        margin:
+          '0 0 2px 0'
+
+      }
+
+    });
+
+
+  // ===========================================================================
+  // 7. VALOR DA ANOMALIA NIÑO 3.4
+  // ===========================================================================
+
+  var labelSST =
+    ui.Label({
+
+      value:
+        'Niño 3.4: calculando...',
+
+      style: {
+
+        fontWeight:
+          'bold',
+
+        fontSize:
+          '10px',
+
+        backgroundColor:
+          'ffffff',
+
+        padding:
+          '2px 5px',
+
+        margin:
+          '0'
+
+      }
+
+    });
+
+
+  var labelIntensidade =
+    ui.Label({
+
+      value:
+        '',
+
+      style: {
+
+        fontSize:
+          '9px',
+
+        backgroundColor:
+          'ffffff',
+
+        padding:
+          '1px 5px 3px 5px',
+
+        margin:
+          '0'
+
+      }
+
+    });
+
+
+  var painelInfo =
+    ui.Panel({
+
+      widgets: [
+
+        labelPeriodo,
+        labelSST,
+        labelIntensidade
+
+      ],
+
+      layout:
+        ui.Panel.Layout.Flow(
+          'vertical'
+        ),
+
+      style: {
+
+        position:
+          'top-left',
+
+        margin:
+          '4px',
+
+        padding:
+          '2px',
+
+        border:
+          '1px solid #aaaaaa',
+
+        backgroundColor:
+          'ffffff'
+
+      }
+
+    });
+
+
+  mapa.add(
+    painelInfo
+  );
+
+
+  // ===========================================================================
+  // 8. ATUALIZAR VALOR DA TSM
+  // ===========================================================================
+
+  resultadosSSTValor[
+    evento.nome
+  ][
+    nomeTrimestre
+  ]
+
+  .evaluate(
+
+    function(valor) {
+
+
+      if (
+        valor === null
+      ) {
+
+
+        labelSST.setValue(
+          'Niño 3.4: sem dados'
+        );
+
+
+        return;
+
+      }
+
+
+      var sinal =
+        valor > 0
+          ? '+'
+          : '';
+
+
+      // Decimal em português.
+
+      var valorTexto =
+        valor
+          .toFixed(2)
+          .replace('.', ',');
+
+
+      labelSST.setValue(
+
+        'Niño 3.4: ' +
+
+        sinal +
+
+        valorTexto +
+
+        ' °C'
+
+      );
+
+
+      labelIntensidade.setValue(
+
+        classificarIntensidadeClient(
+          valor
+        )
+
+      );
+
+    }
+
+  );
+
+
+  // ===========================================================================
+  // 9. ESTILO DO MAPA
+  // ===========================================================================
+
+  mapa.style().set({
+
+    stretch:
+      'both',
+
+    border:
+      '1px solid #cccccc'
+
+  });
+
+
+  return mapa;
+
+}
+
+
+// =============================================================================
+// 30. CABEÇALHO DAS COLUNAS
+// =============================================================================
+
+function criarCabecalhoFacet() {
+
+
+  var painel =
+    ui.Panel({
+
+      layout:
+        ui.Panel.Layout.Flow(
+          'horizontal'
+        ),
+
+      style: {
+
+        stretch:
+          'horizontal',
+
+        height:
+          '42px'
+
+      }
+
+    });
+
+
+  painel.add(
+
+    ui.Label({
+
+      value:
+        'El Niño',
+
+      style: {
+
+        width:
+          '115px',
+
+        fontWeight:
+          'bold',
+
+        textAlign:
+          'center',
+
+        padding:
+          '11px 2px',
+
+        backgroundColor:
+          'eeeeee',
+
+        border:
+          '1px solid #cccccc'
+
+      }
+
+    })
+
+  );
+
+
+  NOMES_TRIMESTRES.forEach(
+
+    function(nomeTrimestre) {
+
+
+      painel.add(
+
+        ui.Label({
+
+          value:
+            TRIMESTRES[
+              nomeTrimestre
+            ].label,
+
+          style: {
+
+            stretch:
+              'horizontal',
+
+            fontWeight:
+              'bold',
+
+            fontSize:
+              '11px',
+
+            textAlign:
+              'center',
+
+            padding:
+              '11px 2px',
+
+            backgroundColor:
+              'eeeeee',
+
+            border:
+              '1px solid #cccccc'
+
+          }
+
+        })
+
+      );
+
+    }
+
+  );
+
+
+  return painel;
+
+}
+
+
+// =============================================================================
+// 31. MÁXIMO DA TSM ENTRE OS QUATRO PERÍODOS EXIBIDOS
+// =============================================================================
+
+function calcularMaxSSTEvento(
+  evento
+) {
+
+
+  var valores = [];
+
+
+  NOMES_TRIMESTRES.forEach(
+
+    function(nomeTrimestre) {
+
+
+      valores.push(
+
+        resultadosSSTValor[
+          evento.nome
+        ][
+          nomeTrimestre
+        ]
+
+      );
+
+    }
+
+  );
+
+
+  return ee.Number(
+
+    ee.List(
+      valores
+    )
+
+    .reduce(
+      ee.Reducer.max()
+    )
+
+  );
+
+}
+
+
+// =============================================================================
+// 32. LEGENDA — PRECIPITAÇÃO
+// =============================================================================
+
+function criarLegendaAnomalia() {
+
+
+  var painel =
+    ui.Panel({
+
+      style: {
+
+        padding:
+          '8px',
+
+        backgroundColor:
+          'ffffff'
+
+      }
+
+    });
+
+
+  painel.add(
+
+    ui.Label({
+
+      value:
+        'Anomalia de precipitação',
+
+      style: {
+
+        fontWeight:
+          'bold',
+
+        fontSize:
+          '13px'
 
       }
 
@@ -1437,12 +2078,12 @@ function adicionarLegendaAnomalia() {
     ui.Label({
 
       value:
-        'event − non-El Niño reference',
+        'Evento − referência sem El Niño forte',
 
       style: {
 
         fontSize:
-          '11px',
+          '10px',
 
         margin:
           '0 0 2px 0'
@@ -1459,12 +2100,12 @@ function adicionarLegendaAnomalia() {
     ui.Label({
 
       value:
-        'mm per trimester',
+        'mm por trimestre',
 
       style: {
 
         fontSize:
-          '11px',
+          '10px',
 
         margin:
           '0 0 8px 0'
@@ -1495,14 +2136,14 @@ function adicionarLegendaAnomalia() {
   var textos = [
 
     '≤ −300 mm',
-    '−300 to −200 mm',
-    '−200 to −100 mm',
-    '−100 to 0 mm',
+    '−300 a −200 mm',
+    '−200 a −100 mm',
+    '−100 a 0 mm',
 
     '≈ 0 mm',
 
-    '0 to 100 mm',
-    '100 to 200 mm',
+    '0 a 100 mm',
+    '100 a 200 mm',
     '≥ 300 mm'
 
   ];
@@ -1515,1111 +2156,49 @@ function adicionarLegendaAnomalia() {
   ) {
 
 
-    adicionarLinhaLegenda(
-
-      painel,
-
-      cores[i],
-
-      textos[i]
-
-    );
-
-  }
-
-
-  painel.add(
-
-    ui.Label({
-
-      value:
-        'Reference: 1991–2020',
-
-      style: {
-
-        fontSize:
-          '10px',
-
-        color:
-          '666666',
-
-        margin:
-          '7px 0 0 0'
-
-      }
-
-    })
-
-  );
-
-
-  painel.add(
-
-    ui.Label({
-
-      value:
-        'Strong El Niño seasons excluded',
-
-      style: {
-
-        fontSize:
-          '10px',
-
-        color:
-          '666666',
-
-        margin:
-          '2px 0 0 0'
-
-      }
-
-    })
-
-  );
-
-
-  Map.add(
-    painel
-  );
-
-}
-
-
-adicionarLegendaAnomalia();
-
-
-// =============================================================================
-// 28. STANDARD DEVIATION LEGEND
-// =============================================================================
-
-function adicionarLegendaStdDev() {
-
-
-  var painel = ui.Panel({
-
-    style: {
-
-      position:
-        'bottom-right',
-
-      padding:
-        '8px 12px',
-
-      backgroundColor:
-        'ffffff'
-
-    }
-
-  });
-
-
-  painel.add(
-
-    ui.Label({
-
-      value:
-        'Inter-event variability',
-
-      style: {
-
-        fontWeight:
-          'bold',
-
-        fontSize:
-          '14px'
-
-      }
-
-    })
-
-  );
-
-
-  painel.add(
-
-    ui.Label({
-
-      value:
-        'SD of four event anomalies — mm',
-
-      style: {
-
-        fontSize:
-          '11px',
-
-        margin:
-          '0 0 8px 0'
-
-      }
-
-    })
-
-  );
-
-
-  var cores = [
-
-    'ffffff',
-    'ffffcc',
-    'ffeda0',
-    'fed976',
-    'feb24c',
-    'fd8d3c',
-    'fc4e2a',
-    'e31a1c',
-    'bd0026',
-    '800026'
-
-  ];
-
-
-  var textos = [
-
-    '0–20 mm',
-    '20–40 mm',
-    '40–60 mm',
-    '60–80 mm',
-    '80–100 mm',
-    '100–120 mm',
-    '120–140 mm',
-    '140–160 mm',
-    '160–180 mm',
-    '180–200+ mm'
-
-  ];
-
-
-  for (
-    var i = 0;
-    i < cores.length;
-    i++
-  ) {
-
-
-    adicionarLinhaLegenda(
-
-      painel,
-
-      cores[i],
-
-      textos[i]
-
-    );
-
-  }
-
-
-  painel.add(
-
-    ui.Label({
-
-      value:
-        'Low SD = similar event response',
-
-      style: {
-
-        fontSize:
-          '10px',
-
-        color:
-          '666666',
-
-        margin:
-          '7px 0 0 0'
-
-      }
-
-    })
-
-  );
-
-
-  painel.add(
-
-    ui.Label({
-
-      value:
-        'High SD = stronger differences among events',
-
-      style: {
-
-        fontSize:
-          '10px',
-
-        color:
-          '666666',
-
-        margin:
-          '2px 0 0 0'
-
-      }
-
-    })
-
-  );
-
-
-  Map.add(
-    painel
-  );
-
-}
-
-
-adicionarLegendaStdDev();
-
-
-// =============================================================================
-// 29. EXPORT — 16 EVENT-SPECIFIC ANOMALIES
-// =============================================================================
-
-EVENTOS.forEach(
-
-  function(evento) {
-
-
-    NOMES_TRIMESTRES.forEach(
-
-      function(nomeTrimestre) {
-
-
-        var nomeAsset =
-
-          'precip_anomaly_elnino_' +
-
-          evento.nome +
-
-          '_' +
-
-          nomeTrimestre;
-
-
-        var assetId =
-
-          CONFIG.assetDir +
-
-          '/' +
-
-          nomeAsset;
-
-
-        var image =
-
-          resultados[
-            evento.nome
-          ][
-            nomeTrimestre
-          ];
-
-
-        Export.image.toAsset({
-
-          image:
-            image,
-
-          description:
-            nomeAsset,
-
-          assetId:
-            assetId,
-
-          region:
-            brasilExport,
-
-          scale:
-            CONFIG.escalaExportacao,
-
-          crs:
-            'EPSG:4326',
-
-          maxPixels:
-            1e13,
-
-          shardSize:
-            128,
-
-          pyramidingPolicy: {
-
-            'anomalia_mm':
-              'mean'
-
-          }
-
-        });
-
-
-        print(
-          'Anomaly export:',
-          assetId
-        );
-
-      }
-
-    );
-
-  }
-
-);
-
-
-// =============================================================================
-// 30. EXPORT — MEAN ANOMALY OF FOUR EVENTS
-// =============================================================================
-
-NOMES_TRIMESTRES.forEach(
-
-  function(nomeTrimestre) {
-
-
-    var nomeAsset =
-
-      'precip_anomaly_mean_4elnino_' +
-
-      nomeTrimestre;
-
-
-    var assetId =
-
-      CONFIG.assetDir +
-
-      '/' +
-
-      nomeAsset;
-
-
-    Export.image.toAsset({
-
-      image:
-        resultadosMedia[
-          nomeTrimestre
-        ],
-
-      description:
-        nomeAsset,
-
-      assetId:
-        assetId,
-
-      region:
-        brasilExport,
-
-      scale:
-        CONFIG.escalaExportacao,
-
-      crs:
-        'EPSG:4326',
-
-      maxPixels:
-        1e13,
-
-      shardSize:
-        128,
-
-      pyramidingPolicy: {
-
-        'media_anomalias_mm':
-          'mean'
-
-      }
-
-    });
-
-
-    print(
-      'Mean anomaly export:',
-      assetId
-    );
-
-  }
-
-);
-
-
-// =============================================================================
-// 31. EXPORT — INTER-EVENT STANDARD DEVIATION
-// =============================================================================
-
-NOMES_TRIMESTRES.forEach(
-
-  function(nomeTrimestre) {
-
-
-    var nomeAsset =
-
-      'precip_anomaly_stddev_4elnino_' +
-
-      nomeTrimestre;
-
-
-    var assetId =
-
-      CONFIG.assetDir +
-
-      '/' +
-
-      nomeAsset;
-
-
-    Export.image.toAsset({
-
-      image:
-        resultadosStdDev[
-          nomeTrimestre
-        ],
-
-      description:
-        nomeAsset,
-
-      assetId:
-        assetId,
-
-      region:
-        brasilExport,
-
-      scale:
-        CONFIG.escalaExportacao,
-
-      crs:
-        'EPSG:4326',
-
-      maxPixels:
-        1e13,
-
-      shardSize:
-        128,
-
-      pyramidingPolicy: {
-
-        'stddev_anomalias_mm':
-          'mean'
-
-      }
-
-    });
-
-
-    print(
-      'SD export:',
-      assetId
-    );
-
-  }
-
-);
-
-
-// =============================================================================
-// 32. CHECK REFERENCE YEARS
-// =============================================================================
-
-NOMES_TRIMESTRES.forEach(
-
-  function(nomeTrimestre) {
-
-
-    print(
-
-      'Reference years — ' +
-      nomeTrimestre,
-
-      obterAnosReferencia(
-        nomeTrimestre
-      )
-
-    );
-
-
-    print(
-
-      'Reference N — ' +
-      nomeTrimestre,
-
-      criarColecaoReferencia(
-        nomeTrimestre
-      ).size()
-
-    );
-
-  }
-
-);
-
-
-// =============================================================================
-// 33. CHECK ALL EVENT ANOMALIES
-// =============================================================================
-
-EVENTOS.forEach(
-
-  function(evento) {
-
-
-    NOMES_TRIMESTRES.forEach(
-
-      function(nomeTrimestre) {
-
-
-        print(
-
-          evento.label +
-          ' — ' +
-          nomeTrimestre,
-
-          resultados[
-            evento.nome
-          ][
-            nomeTrimestre
-          ]
-
-        );
-
-      }
-
-    );
-
-  }
-
-);
-
-
-// =============================================================================
-// 34. CHECK 2023/24 SPECIFICALLY
-// =============================================================================
-
-print(
-  '2023/24 — SON',
-  resultados['2023_24'].SON
-);
-
-
-print(
-  '2023/24 — DJF',
-  resultados['2023_24'].DJF
-);
-
-
-print(
-  '2023/24 — MAM',
-  resultados['2023_24'].MAM
-);
-
-
-print(
-  '2023/24 — JJA',
-  resultados['2023_24'].JJA
-);
-
-
-// =============================================================================
-// 35. CHECK SUMMARY PRODUCTS
-// =============================================================================
-
-NOMES_TRIMESTRES.forEach(
-
-  function(nomeTrimestre) {
-
-
-    print(
-
-      'Mean anomaly — ' +
-      nomeTrimestre,
-
-      resultadosMedia[
-        nomeTrimestre
-      ]
-
-    );
-
-
-    print(
-
-      'Inter-event SD — ' +
-      nomeTrimestre,
-
-      resultadosStdDev[
-        nomeTrimestre
-      ]
-
-    );
-
-  }
-
-);
-
-
-// =============================================================================
-// 36. FINAL CHECK
-// =============================================================================
-
-print(
-  'Configured exports:'
-);
-
-
-print(
-  '16 individual anomaly maps'
-);
-
-
-print(
-  '4 mean anomaly maps'
-);
-
-
-print(
-  '4 inter-event standard deviation maps'
-);
-
-
-print(
-  'Events: 1982/83, 1997/98, 2015/16, 2023/24'
-);
-
-// =============================================================================
-// FACET MAP
-//
-// COLUMNS = SEASONS
-//
-//   DJF = Dez–Jan–Fev
-//   MAM = Mar–Abr–Mai
-//   JJA = Jun–Jul–Ago
-//   SON = Set–Out–Nov
-//
-// ROWS = EL NIÑO EVENTS
-//
-//   1982/83
-//   1997/98
-//   2015/16
-//   2023/24
-//
-// =============================================================================
-
-
-// =============================================================================
-// 1. FACET LABELS
-// =============================================================================
-
-var ROTULOS_TRIMESTRES = {
-
-  DJF:
-    'Dez–Jan–Fev',
-
-  MAM:
-    'Mar–Abr–Mai',
-
-  JJA:
-    'Jun–Jul–Ago',
-
-  SON:
-    'Set–Out–Nov'
-
-};
-
-
-// =============================================================================
-// 2. CREATE ONE MINI-MAP
-// =============================================================================
-
-function criarMapaFacet(
-  evento,
-  nomeTrimestre
-) {
-
-
-  var mapa = ui.Map();
-
-
-  // ---------------------------------------------------------------------------
-  // Hide controls to maximize map area.
-  // ---------------------------------------------------------------------------
-
-  mapa.setControlVisibility(
-    false
-  );
-
-
-  // ---------------------------------------------------------------------------
-  // Add anomaly.
-  // ---------------------------------------------------------------------------
-
-  mapa.addLayer(
-
-    resultados[
-      evento.nome
-    ][
-      nomeTrimestre
-    ]
-
-    .clip(
-      brasilExport
-    ),
-
-    VIS_ANOMALIA,
-
-    evento.label +
-      ' — ' +
-      nomeTrimestre,
-
-    true
-
-  );
-
-
-  // ---------------------------------------------------------------------------
-  // State boundaries.
-  // ---------------------------------------------------------------------------
-
-  mapa.addLayer(
-
-    linhasEstados,
-
-    {
-      palette:
-        ['555555']
-    },
-
-    'States',
-
-    true
-
-  );
-
-
-  // ---------------------------------------------------------------------------
-  // Label inside each map.
-  // ---------------------------------------------------------------------------
-
-  mapa.add(
-
-    ui.Label({
-
-      value:
-
-        evento.label +
-        '  |  ' +
-        nomeTrimestre,
-
-      style: {
-
-        position:
-          'top-left',
-
-        fontWeight:
-          'bold',
-
-        fontSize:
-          '10px',
-
-        color:
-          '222222',
-
-        backgroundColor:
-          'ffffff',
-
-        padding:
-          '3px 5px',
-
-        margin:
-          '4px',
-
-        border:
-          '1px solid #bbbbbb'
-
-      }
-
-    })
-
-  );
-
-
-  // ---------------------------------------------------------------------------
-  // Map cell style.
-  // ---------------------------------------------------------------------------
-
-  mapa.style().set({
-
-    stretch:
-      'both',
-
-    border:
-      '1px solid #cccccc'
-
-  });
-
-
-  return mapa;
-
-}
-
-
-// =============================================================================
-// 3. COLUMN HEADERS
-// =============================================================================
-
-function criarCabecalhoFacet() {
-
-
-  var painel = ui.Panel({
-
-    layout:
-      ui.Panel.Layout.Flow(
-        'horizontal'
-      ),
-
-    style: {
-
-      stretch:
-        'horizontal',
-
-      height:
-        '38px',
-
-      backgroundColor:
-        'ffffff'
-
-    }
-
-  });
-
-
-  // Empty top-left corner.
-  painel.add(
-
-    ui.Label({
-
-      value:
-        'El Niño',
-
-      style: {
-
-        width:
-          '90px',
-
-        fontWeight:
-          'bold',
-
-        fontSize:
-          '12px',
-
-        textAlign:
-          'center',
-
-        padding:
-          '10px 2px',
-
-        backgroundColor:
-          'eeeeee',
-
-        border:
-          '1px solid #cccccc'
-
-      }
-
-    })
-
-  );
-
-
-  NOMES_TRIMESTRES.forEach(
-
-    function(nomeTrimestre) {
-
-
-      painel.add(
-
-        ui.Label({
-
-          value:
-            ROTULOS_TRIMESTRES[
-              nomeTrimestre
-            ],
-
-          style: {
-
-            stretch:
-              'horizontal',
-
-            fontWeight:
-              'bold',
-
-            fontSize:
-              '12px',
-
-            textAlign:
-              'center',
-
-            padding:
-              '10px 2px',
-
-            backgroundColor:
-              'eeeeee',
-
-            border:
-              '1px solid #cccccc'
-
-          }
-
-        })
-
-      );
-
-    }
-
-  );
-
-
-  return painel;
-
-}
-
-
-// =============================================================================
-// 4. CREATE SHARED LEGEND
-// =============================================================================
-
-function criarLegendaFacet() {
-
-
-  var painel = ui.Panel({
-
-    layout:
-      ui.Panel.Layout.Flow(
-        'horizontal'
-      ),
-
-    style: {
-
-      stretch:
-        'horizontal',
-
-      backgroundColor:
-        'ffffff',
-
-      padding:
-        '4px 8px',
-
-      border:
-        '1px solid #cccccc'
-
-    }
-
-  });
-
-
-  painel.add(
-
-    ui.Label({
-
-      value:
-        'Precipitation anomaly (mm):',
-
-      style: {
-
-        fontWeight:
-          'bold',
-
-        fontSize:
-          '11px',
-
-        margin:
-          '4px 10px 0 0'
-
-      }
-
-    })
-
-  );
-
-
-  var cores = [
-
-    '8b0000',
-    'd6604d',
-    'f4a582',
-    'fddbc7',
-    'ffffff',
-    'd1e5f0',
-    '4393c3',
-    '053061'
-
-  ];
-
-
-  var textos = [
-
-    '≤ −300',
-
-    '−300 to −200',
-
-    '−200 to −100',
-
-    '−100 to 0',
-
-    '≈ 0',
-
-    '0 to 100',
-
-    '100 to 200',
-
-    '≥ 300'
-
-  ];
-
-
-  for (
-    var i = 0;
-    i < cores.length;
-    i++
-  ) {
-
-
-    var caixa = ui.Label({
-
-      style: {
-
-        backgroundColor:
-          '#' + cores[i],
-
-        padding:
-          '8px',
-
-        margin:
-          '0 3px 0 0',
-
-        border:
-          '1px solid #999999'
-
-      }
-
-    });
-
-
-    var texto = ui.Label({
-
-      value:
-        textos[i],
-
-      style: {
-
-        fontSize:
-          '9px',
-
-        margin:
-          '3px 7px 0 0'
-
-      }
-
-    });
-
-
     painel.add(
 
       ui.Panel({
 
         widgets: [
 
-          caixa,
-          texto
+          ui.Label({
+
+            style: {
+
+              backgroundColor:
+                '#' + cores[i],
+
+              padding:
+                '8px',
+
+              margin:
+                '0 6px 2px 0',
+
+              border:
+                '1px solid #999999'
+
+            }
+
+          }),
+
+
+          ui.Label({
+
+            value:
+              textos[i],
+
+            style: {
+
+              fontSize:
+                '10px',
+
+              margin:
+                '2px 0 0 0'
+
+            }
+
+          })
 
         ],
 
@@ -2635,140 +2214,620 @@ function criarLegendaFacet() {
   }
 
 
+  painel.add(
+
+    ui.Label({
+
+      value:
+        'Vermelho = déficit | Azul = excesso',
+
+      style: {
+
+        fontSize:
+          '9px',
+
+        color:
+          '666666',
+
+        margin:
+          '7px 0 0 0'
+
+      }
+
+    })
+
+  );
+
+
+  painel.add(
+
+    ui.Label({
+
+      value:
+        'Referência: 1991–2020',
+
+      style: {
+
+        fontSize:
+          '9px',
+
+        color:
+          '666666',
+
+        margin:
+          '2px 0 0 0'
+
+      }
+
+    })
+
+  );
+
+
   return painel;
 
 }
 
 
 // =============================================================================
-// 5. BUILD FACET GRID
+// 33. LEGENDA — TSM
+// =============================================================================
+
+function criarLegendaCorSST() {
+
+
+  var painel =
+    ui.Panel({
+
+      style: {
+
+        padding:
+          '8px',
+
+        margin:
+          '7px 0 0 0',
+
+        backgroundColor:
+          'ffffff'
+
+      }
+
+    });
+
+
+  painel.add(
+
+    ui.Label({
+
+      value:
+        'Anomalia da TSM',
+
+      style: {
+
+        fontWeight:
+          'bold',
+
+        fontSize:
+          '13px'
+
+      }
+
+    })
+
+  );
+
+
+  painel.add(
+
+    ui.Label({
+
+      value:
+        'NOAA OISST — temperatura da superfície do mar',
+
+      style: {
+
+        fontSize:
+          '10px',
+
+        margin:
+          '0 0 8px 0'
+
+      }
+
+    })
+
+  );
+
+
+  var cores = [
+
+    '3f007d',
+    '756bb1',
+    'cbc9e2',
+
+    'f7f7f7',
+
+    'fee6ce',
+    'fdae6b',
+    'd94801'
+
+  ];
+
+
+  var textos = [
+
+    '≤ −3 °C',
+    '−2 a −1 °C',
+    '−1 a 0 °C',
+
+    '≈ 0 °C',
+
+    '0 a +1 °C',
+    '+1 a +2 °C',
+    '≥ +3 °C'
+
+  ];
+
+
+  for (
+    var i = 0;
+    i < cores.length;
+    i++
+  ) {
+
+
+    painel.add(
+
+      ui.Panel({
+
+        widgets: [
+
+          ui.Label({
+
+            style: {
+
+              backgroundColor:
+                '#' + cores[i],
+
+              padding:
+                '8px',
+
+              margin:
+                '0 6px 2px 0',
+
+              border:
+                '1px solid #999999'
+
+            }
+
+          }),
+
+
+          ui.Label({
+
+            value:
+              textos[i],
+
+            style: {
+
+              fontSize:
+                '10px',
+
+              margin:
+                '2px 0 0 0'
+
+            }
+
+          })
+
+        ],
+
+        layout:
+          ui.Panel.Layout.Flow(
+            'horizontal'
+          )
+
+      })
+
+    );
+
+  }
+
+
+  painel.add(
+
+    ui.Label({
+
+      value:
+        'Roxo = resfriamento | Laranja = aquecimento',
+
+      style: {
+
+        fontSize:
+          '9px',
+
+        color:
+          '666666',
+
+        margin:
+          '7px 0 0 0'
+
+      }
+
+    })
+
+  );
+
+
+  return painel;
+
+}
+
+
+// =============================================================================
+// 34. LEGENDA — INTENSIDADE NIÑO 3.4
+// =============================================================================
+
+function criarLegendaIntensidadeSST() {
+
+
+  var painel =
+    ui.Panel({
+
+      style: {
+
+        padding:
+          '8px',
+
+        margin:
+          '7px 0 0 0',
+
+        backgroundColor:
+          'ffffff'
+
+      }
+
+    });
+
+
+  painel.add(
+
+    ui.Label({
+
+      value:
+        'Intensidade do aquecimento — Niño 3.4',
+
+      style: {
+
+        fontWeight:
+          'bold',
+
+        fontSize:
+          '13px'
+
+      }
+
+    })
+
+  );
+
+
+  var textos = [
+
+    '< +0,5 °C — abaixo do limiar',
+
+    '+0,5 a +0,99 °C — fraco',
+
+    '+1,0 a +1,49 °C — moderado',
+
+    '+1,5 a +1,99 °C — forte',
+
+    '≥ +2,0 °C — muito forte'
+
+  ];
+
+
+  textos.forEach(
+
+    function(texto) {
+
+
+      painel.add(
+
+        ui.Label({
+
+          value:
+            texto,
+
+          style: {
+
+            fontSize:
+              '10px',
+
+            margin:
+              '1px 0'
+
+          }
+
+        })
+
+      );
+
+    }
+
+  );
+
+
+  painel.add(
+
+    ui.Label({
+
+      value:
+        'Classificação descritiva OISST; não corresponde ao ONI oficial.',
+
+      style: {
+
+        fontSize:
+          '9px',
+
+        color:
+          '666666',
+
+        margin:
+          '7px 0 0 0'
+
+      }
+
+    })
+
+  );
+
+
+  return painel;
+
+}
+
+
+// =============================================================================
+// 35. CONSTRUIR O FACET 4 × 4
 // =============================================================================
 
 var mapasFacet = [];
 
 
-var painelGrid = ui.Panel({
+var painelGrid =
+  ui.Panel({
 
-  layout:
-    ui.Panel.Layout.Flow(
-      'vertical'
-    ),
+    layout:
+      ui.Panel.Layout.Flow(
+        'vertical'
+      ),
 
-  style: {
+    style: {
 
-    stretch:
-      'both',
+      stretch:
+        'both',
 
-    backgroundColor:
-      'ffffff'
+      backgroundColor:
+        'ffffff'
 
-  }
+    }
 
-});
+  });
 
-
-// -----------------------------------------------------------------------------
-// Add X-axis headers.
-// -----------------------------------------------------------------------------
 
 painelGrid.add(
   criarCabecalhoFacet()
 );
 
 
-// -----------------------------------------------------------------------------
-// One row per El Niño event.
-// -----------------------------------------------------------------------------
-
 EVENTOS.forEach(
 
   function(evento) {
 
 
-    var linha = ui.Panel({
+    var linha =
+      ui.Panel({
 
-      layout:
-        ui.Panel.Layout.Flow(
-          'horizontal'
-        ),
+        layout:
+          ui.Panel.Layout.Flow(
+            'horizontal'
+          ),
 
-      style: {
+        style: {
 
-        stretch:
-          'both'
+          stretch:
+            'both'
 
-      }
+        }
 
-    });
+      });
 
 
     // -------------------------------------------------------------------------
-    // Y-axis label.
+    // CABEÇALHO DA LINHA
     // -------------------------------------------------------------------------
 
-    var rotuloAno = ui.Panel({
+    var labelEvento =
+      ui.Label({
 
-      widgets: [
+        value:
+          evento.label,
 
-        ui.Label({
+        style: {
 
-          value:
-            evento.label,
+          fontWeight:
+            'bold',
 
-          style: {
+          fontSize:
+            '12px',
 
-            fontWeight:
-              'bold',
+          textAlign:
+            'center',
 
-            fontSize:
-              '12px',
+          stretch:
+            'horizontal',
 
-            textAlign:
-              'center',
+          margin:
+            '5px 0 3px 0'
 
-            stretch:
-              'horizontal',
+        }
 
-            padding:
-              '8px 2px'
+      });
 
-          }
 
-        })
+    var labelPico =
+      ui.Label({
 
-      ],
+        value:
+          'máx. exibido: ...',
 
-      layout:
-        ui.Panel.Layout.Flow(
-          'vertical'
-        ),
+        style: {
 
-      style: {
+          fontSize:
+            '8px',
 
-        width:
-          '90px',
+          textAlign:
+            'center',
 
-        stretch:
-          'vertical',
+          stretch:
+            'horizontal'
 
-        backgroundColor:
-          'eeeeee',
+        }
 
-        border:
-          '1px solid #cccccc'
+      });
+
+
+    var labelClasse =
+      ui.Label({
+
+        value:
+          '',
+
+        style: {
+
+          fontSize:
+            '9px',
+
+          fontWeight:
+            'bold',
+
+          textAlign:
+            'center',
+
+          stretch:
+            'horizontal',
+
+          margin:
+            '2px 0'
+
+        }
+
+      });
+
+
+    var painelAno =
+      ui.Panel({
+
+        widgets: [
+
+          labelEvento,
+          labelPico,
+          labelClasse
+
+        ],
+
+        layout:
+          ui.Panel.Layout.Flow(
+            'vertical'
+          ),
+
+        style: {
+
+          width:
+            '115px',
+
+          stretch:
+            'vertical',
+
+          backgroundColor:
+            'eeeeee',
+
+          border:
+            '1px solid #cccccc'
+
+        }
+
+      });
+
+
+    // -------------------------------------------------------------------------
+    // Maior valor entre os quatro períodos exibidos.
+    // -------------------------------------------------------------------------
+
+    calcularMaxSSTEvento(
+      evento
+    )
+
+    .evaluate(
+
+      function(valor) {
+
+
+        if (
+          valor === null
+        ) {
+
+          return;
+
+        }
+
+
+        var sinal =
+          valor > 0
+            ? '+'
+            : '';
+
+
+        var textoValor =
+          valor
+            .toFixed(2)
+            .replace('.', ',');
+
+
+        labelPico.setValue(
+
+          'máx. exibido: ' +
+
+          sinal +
+
+          textoValor +
+
+          ' °C'
+
+        );
+
+
+        labelClasse.setValue(
+
+          classificarIntensidadeClient(
+            valor
+          )
+
+        );
 
       }
 
-    });
+    );
 
 
     linha.add(
-      rotuloAno
+      painelAno
     );
 
 
     // -------------------------------------------------------------------------
-    // Four seasonal maps.
+    // QUATRO MAPAS
     // -------------------------------------------------------------------------
 
     NOMES_TRIMESTRES.forEach(
@@ -2776,13 +2835,14 @@ EVENTOS.forEach(
       function(nomeTrimestre) {
 
 
-        var mapa = criarMapaFacet(
+        var mapa =
+          criarMapaFacet(
 
-          evento,
+            evento,
 
-          nomeTrimestre
+            nomeTrimestre
 
-        );
+          );
 
 
         mapasFacet.push(
@@ -2809,18 +2869,8 @@ EVENTOS.forEach(
 
 
 // =============================================================================
-// 6. LINK ALL 16 MAPS
+// 36. SINCRONIZAR TODOS OS MAPAS
 // =============================================================================
-
-/*
- * Moving or zooming one map moves all others.
- *
- * This is essential for spatial comparison:
- *
- * same bounding box
- * same zoom
- * same geographic position
- */
 
 var linkerFacet = ui.Map.Linker(
 
@@ -2832,71 +2882,143 @@ var linkerFacet = ui.Map.Linker(
 
 
 // =============================================================================
-// 7. TITLE
+// 37. GRÁFICO — EVOLUÇÃO DA TSM
+//
+// A ordem é CRONOLÓGICA:
+//
+// SON -> DJF -> MAM -> JJA
 // =============================================================================
 
-var painelTitulo = ui.Panel({
+var graficoSST = ui.Chart.feature.groups(
 
-  widgets: [
+  tabelaSST,
 
-    ui.Label({
+  'chart_order',
 
-      value:
-        'Strong El Niño precipitation anomalies — Brazil',
+  'sst_anomaly_C',
 
-      style: {
+  'event_label'
 
-        fontWeight:
-          'bold',
+)
 
-        fontSize:
-          '18px',
+.setChartType(
+  'LineChart'
+)
 
-        margin:
-          '2px 8px'
+.setOptions({
+
+  title:
+    'Evolução da anomalia da TSM na região Niño 3.4',
+
+  hAxis: {
+
+    title:
+      'Sequência sazonal do evento',
+
+    ticks: [
+
+      {
+
+        v:
+          1,
+
+        f:
+          'SON'
+
+      },
+
+      {
+
+        v:
+          2,
+
+        f:
+          'DJF'
+
+      },
+
+      {
+
+        v:
+          3,
+
+        f:
+          'MAM'
+
+      },
+
+      {
+
+        v:
+          4,
+
+        f:
+          'JJA'
 
       }
 
-    }),
+    ]
+
+  },
 
 
-    ui.Label({
+  vAxis: {
 
-      value:
-        'Observed seasonal precipitation − 1991–2020 non-strong-El-Niño reference',
+    title:
+      'Anomalia da TSM (°C)',
 
-      style: {
+    baseline:
+      0,
 
-        fontSize:
-          '11px',
+    viewWindow: {
 
-        color:
-          '555555',
+      min:
+        -2,
 
-        margin:
-          '0 8px 4px 8px'
+      max:
+        3.5
 
-      }
+    }
 
-    })
+  },
 
-  ],
 
-  layout:
-    ui.Panel.Layout.Flow(
-      'vertical'
-    ),
+  lineWidth:
+    2,
 
-  style: {
 
-    stretch:
-      'horizontal',
+  pointSize:
+    5,
 
-    backgroundColor:
-      'ffffff',
 
-    padding:
-      '3px'
+  legend: {
+
+    position:
+      'bottom',
+
+    textStyle: {
+
+      fontSize:
+        9
+
+    }
+
+  },
+
+
+  chartArea: {
+
+    left:
+      60,
+
+    top:
+      45,
+
+    width:
+      '74%',
+
+    height:
+      '58%'
 
   }
 
@@ -2904,42 +3026,218 @@ var painelTitulo = ui.Panel({
 
 
 // =============================================================================
-// 8. COMPLETE FACET APPLICATION
+// 38. TÍTULO
 // =============================================================================
 
-var painelAplicacao = ui.Panel({
+var painelTitulo =
+  ui.Panel({
 
-  widgets: [
+    widgets: [
 
-    painelTitulo,
+      ui.Label({
 
-    painelGrid,
+        value:
+          'Anomalias de precipitação e TSM durante eventos fortes de El Niño',
 
-    criarLegendaFacet()
+        style: {
 
-  ],
+          fontWeight:
+            'bold',
 
-  layout:
-    ui.Panel.Layout.Flow(
-      'vertical'
-    ),
+          fontSize:
+            '18px',
 
-  style: {
+          margin:
+            '2px 8px'
 
-    stretch:
-      'both',
+        }
 
-    backgroundColor:
-      'ffffff'
+      }),
 
-  }
 
-});
+      ui.Label({
+
+        value:
+          'Pacífico tropical: anomalia da TSM | Brasil: anomalia de precipitação',
+
+        style: {
+
+          fontSize:
+            '11px',
+
+          color:
+            '555555',
+
+          margin:
+            '0 8px 2px 8px'
+
+        }
+
+      }),
+
+
+      ui.Label({
+
+        value:
+          'TSM: NOAA OISST | Precipitação: ERA5-Land',
+
+        style: {
+
+          fontSize:
+            '10px',
+
+          color:
+            '777777',
+
+          margin:
+            '0 8px 4px 8px'
+
+        }
+
+      })
+
+    ],
+
+    layout:
+      ui.Panel.Layout.Flow(
+        'vertical'
+      ),
+
+    style: {
+
+      stretch:
+        'horizontal',
+
+      backgroundColor:
+        'ffffff'
+
+    }
+
+  });
 
 
 // =============================================================================
-// 9. REPLACE DEFAULT MAP WITH FACET VIEW
+// 39. PAINEL LATERAL
 // =============================================================================
+
+var painelLateral =
+  ui.Panel({
+
+    widgets: [
+
+      criarLegendaAnomalia(),
+
+      criarLegendaCorSST(),
+
+      criarLegendaIntensidadeSST(),
+
+      ui.Label({
+
+        value:
+          'Evolução da temperatura do oceano',
+
+        style: {
+
+          fontWeight:
+            'bold',
+
+          fontSize:
+            '13px',
+
+          margin:
+            '12px 8px 0 8px'
+
+        }
+
+      }),
+
+      graficoSST
+
+    ],
+
+    layout:
+      ui.Panel.Layout.Flow(
+        'vertical'
+      ),
+
+    style: {
+
+      width:
+        '355px',
+
+      padding:
+        '5px',
+
+      backgroundColor:
+        'ffffff'
+
+    }
+
+  });
+
+
+// =============================================================================
+// 40. CORPO PRINCIPAL
+// =============================================================================
+
+var painelCorpo =
+  ui.Panel({
+
+    widgets: [
+
+      painelGrid,
+
+      painelLateral
+
+    ],
+
+    layout:
+      ui.Panel.Layout.Flow(
+        'horizontal'
+      ),
+
+    style: {
+
+      stretch:
+        'both'
+
+    }
+
+  });
+
+
+// =============================================================================
+// 41. APLICAÇÃO
+// =============================================================================
+
+var painelAplicacao =
+  ui.Panel({
+
+    widgets: [
+
+      painelTitulo,
+
+      painelCorpo
+
+    ],
+
+    layout:
+      ui.Panel.Layout.Flow(
+        'vertical'
+      ),
+
+    style: {
+
+      stretch:
+        'both',
+
+      backgroundColor:
+        'ffffff'
+
+    }
+
+  });
+
 
 ui.root.clear();
 
@@ -2950,18 +3248,475 @@ ui.root.add(
 
 
 // =============================================================================
-// 10. INITIAL MAP EXTENT
+// 42. EXTENSÃO INICIAL
+//
+// Todos os mapas estão sincronizados.
 // =============================================================================
 
-/*
- * Because all maps are linked, centering the first map
- * propagates the same extent to all 16 maps.
- */
+mapasFacet[0].setCenter(
 
-mapasFacet[0].centerObject(
+  -105,
 
-  brasil,
+  -5,
 
-  4
+  2
 
+);
+
+
+// =============================================================================
+// 43. TABELA DA TSM
+// =============================================================================
+
+print(
+
+  'Anomalias sazonais da TSM na região Niño 3.4',
+
+  tabelaSST
+
+);
+
+
+// =============================================================================
+// 44. VALORES DA TSM
+// =============================================================================
+
+EVENTOS.forEach(
+
+  function(evento) {
+
+
+    NOMES_TRIMESTRES.forEach(
+
+      function(nomeTrimestre) {
+
+
+        print(
+
+          evento.label +
+          ' | ' +
+          nomeTrimestre +
+          ' | anomalia TSM Niño 3.4',
+
+          resultadosSSTValor[
+            evento.nome
+          ][
+            nomeTrimestre
+          ]
+
+        );
+
+      }
+
+    );
+
+  }
+
+);
+
+
+// =============================================================================
+// 45. VERIFICAR ANOS DE REFERÊNCIA
+// =============================================================================
+
+NOMES_TRIMESTRES.forEach(
+
+  function(nomeTrimestre) {
+
+
+    print(
+
+      'Anos da referência | ' +
+      nomeTrimestre,
+
+      obterAnosReferencia(
+        nomeTrimestre
+      )
+
+    );
+
+
+    print(
+
+      'N da referência | ' +
+      nomeTrimestre,
+
+      criarColecaoReferencia(
+        nomeTrimestre
+      ).size()
+
+    );
+
+  }
+
+);
+
+
+// =============================================================================
+// 46. EXPORTAR 16 ANOMALIAS DE PRECIPITAÇÃO
+// =============================================================================
+
+EVENTOS.forEach(
+
+  function(evento) {
+
+
+    NOMES_TRIMESTRES.forEach(
+
+      function(nomeTrimestre) {
+
+
+        var nomeAsset =
+
+          'precip_anomaly_elnino_' +
+
+          evento.nome +
+
+          '_' +
+
+          nomeTrimestre;
+
+
+        Export.image.toAsset({
+
+          image:
+
+            resultados[
+              evento.nome
+            ][
+              nomeTrimestre
+            ],
+
+          description:
+            nomeAsset,
+
+          assetId:
+            CONFIG.assetDir +
+            '/' +
+            nomeAsset,
+
+          region:
+            brasilExport,
+
+          scale:
+            CONFIG.escalaExportacao,
+
+          crs:
+            'EPSG:4326',
+
+          maxPixels:
+            1e13,
+
+          pyramidingPolicy: {
+
+            'anomalia_mm':
+              'mean'
+
+          }
+
+        });
+
+      }
+
+    );
+
+  }
+
+);
+
+
+// =============================================================================
+// 47. EXPORTAR 16 MAPAS DE ANOMALIA DA TSM
+// =============================================================================
+
+EVENTOS.forEach(
+
+  function(evento) {
+
+
+    NOMES_TRIMESTRES.forEach(
+
+      function(nomeTrimestre) {
+
+
+        var nomeAsset =
+
+          'sst_anomaly_pacific_elnino_' +
+
+          evento.nome +
+
+          '_' +
+
+          nomeTrimestre;
+
+
+        var imagem =
+
+          resultadosSSTImagem[
+            evento.nome
+          ][
+            nomeTrimestre
+          ]
+
+          .set({
+
+            event:
+              evento.nome,
+
+            event_label:
+              evento.label,
+
+            trimester:
+              nomeTrimestre,
+
+            nino34_sst_anomaly_C:
+
+              resultadosSSTValor[
+                evento.nome
+              ][
+                nomeTrimestre
+              ],
+
+            source:
+              'NOAA/CDR/OISST/V2_1'
+
+          });
+
+
+        Export.image.toAsset({
+
+          image:
+            imagem,
+
+          description:
+            nomeAsset,
+
+          assetId:
+            CONFIG.assetDir +
+            '/' +
+            nomeAsset,
+
+          region:
+            regiaoPacifico,
+
+          scale:
+            CONFIG.escalaSST,
+
+          crs:
+            'EPSG:4326',
+
+          maxPixels:
+            1e13,
+
+          pyramidingPolicy: {
+
+            'sst_anomaly_C':
+              'mean'
+
+          }
+
+        });
+
+      }
+
+    );
+
+  }
+
+);
+
+
+// =============================================================================
+// 48. EXPORTAR TABELA DA TSM
+// =============================================================================
+
+Export.table.toDrive({
+
+  collection:
+    tabelaSST,
+
+  description:
+    'nino34_OISST_intensidade_eventos_elnino',
+
+  fileNamePrefix:
+    'nino34_OISST_intensidade_eventos_elnino',
+
+  fileFormat:
+    'CSV',
+
+  selectors: [
+
+    'event',
+    'event_label',
+    'trimester',
+    'period_label',
+    'year',
+    'sst_anomaly_C',
+    'intensity'
+
+  ]
+
+});
+
+
+// =============================================================================
+// 49. EXPORTAR MÉDIA DAS ANOMALIAS DE PRECIPITAÇÃO
+// =============================================================================
+
+NOMES_TRIMESTRES.forEach(
+
+  function(nomeTrimestre) {
+
+
+    var nomeAsset =
+
+      'precip_anomaly_mean_4elnino_' +
+
+      nomeTrimestre;
+
+
+    Export.image.toAsset({
+
+      image:
+        resultadosMedia[
+          nomeTrimestre
+        ],
+
+      description:
+        nomeAsset,
+
+      assetId:
+        CONFIG.assetDir +
+        '/' +
+        nomeAsset,
+
+      region:
+        brasilExport,
+
+      scale:
+        CONFIG.escalaExportacao,
+
+      crs:
+        'EPSG:4326',
+
+      maxPixels:
+        1e13,
+
+      pyramidingPolicy: {
+
+        'media_anomalias_mm':
+          'mean'
+
+      }
+
+    });
+
+  }
+
+);
+
+
+// =============================================================================
+// 50. EXPORTAR DESVIO-PADRÃO ENTRE EVENTOS
+// =============================================================================
+
+NOMES_TRIMESTRES.forEach(
+
+  function(nomeTrimestre) {
+
+
+    var nomeAsset =
+
+      'precip_anomaly_stddev_4elnino_' +
+
+      nomeTrimestre;
+
+
+    Export.image.toAsset({
+
+      image:
+        resultadosStdDev[
+          nomeTrimestre
+        ],
+
+      description:
+        nomeAsset,
+
+      assetId:
+        CONFIG.assetDir +
+        '/' +
+        nomeAsset,
+
+      region:
+        brasilExport,
+
+      scale:
+        CONFIG.escalaExportacao,
+
+      crs:
+        'EPSG:4326',
+
+      maxPixels:
+        1e13,
+
+      pyramidingPolicy: {
+
+        'stddev_anomalias_mm':
+          'mean'
+
+      }
+
+    });
+
+  }
+
+);
+
+
+// =============================================================================
+// 51. VERIFICAÇÃO FINAL
+// =============================================================================
+
+print(
+  'Análise configurada.'
+);
+
+
+print(
+  'Eventos: 1982/83, 1997/98, 2015/16 e 2023/24.'
+);
+
+
+print(
+  'Pacífico: anomalia sazonal da TSM — NOAA OISST.'
+);
+
+
+print(
+  'Brasil: anomalia sazonal de precipitação — ERA5-Land.'
+);
+
+
+print(
+  'As duas variáveis são mostradas no MESMO mapa.'
+);
+
+
+print(
+  'Precipitação: vermelho → branco → azul.'
+);
+
+
+print(
+  'TSM: roxo → branco → laranja.'
+);
+
+
+print(
+  'Retângulo preto = região Niño 3.4.'
+);
+
+
+print(
+  'Gráfico da TSM: ordem cronológica SON → DJF → MAM → JJA.'
 );

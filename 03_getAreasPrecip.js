@@ -1,17 +1,27 @@
 // =============================================================================
-// MAPBIOMAS COLLECTION 11 — AREA EXPORT BY BIOME
+// MAPBIOMAS COLLECTION 11
+// AREA BY BIOME, CLASS AND PRECIPITATION-ANOMALY PRODUCT
 //
-// Output columns:
+// Products:
+//   1. Mean anomaly of four strong El Niño events
+//   2. El Niño 2023/2024 anomaly
 //
-//   year
+// Classification:
+//   MapBiomas Collection 11 — 2025
+//
+// Output:
+//   classification_year
+//   anomaly_product
+//   event_label
 //   period
 //   biome
 //   class
 //   precip_anomaly_mm
+//   anomaly_bin_mm
 //   area_ha
 //
-// Creates 24 tasks:
-//   4 periods × 6 biomes
+// Number of tasks:
+//   2 products × 4 periods × 6 biomes = 48
 // =============================================================================
 
 
@@ -19,7 +29,7 @@
 // 1. SETTINGS
 // =============================================================================
 
-var YEAR = 2025;
+var CLASSIFICATION_YEAR = 2025;
 
 var PERIODS = [
   'DJF',
@@ -37,11 +47,24 @@ var BIOME_IDS = [
   6
 ];
 
-// 1 = anomaly rounded to the nearest 1 mm.
-// Use 5, 10 or 25 to reduce the number of output rows.
+
+/*
+ * 10 = anomaly classes every 10 mm.
+ *
+ * Examples:
+ *   -137 becomes -140
+ *   -133 becomes -130
+ *    +46 becomes +50
+ *
+ * Change to 1 for integer-millimetre classes.
+ */
 var ANOMALY_BIN_MM = 10;
 
-// Increase to 16 if an individual biome still fails.
+
+/*
+ * Increase to 16 only if an individual task still fails
+ * with an out-of-memory error.
+ */
 var TILE_SCALE = 8;
 
 var SCALE = 30;
@@ -70,8 +93,64 @@ var BIOMES_ASSET =
   'projects/mapbiomas-workspace/AUXILIAR/biome_2025_buf5k_30m';
 
 
-// Simple processing region.
-// Raster masks restrict each calculation to the selected biome.
+// =============================================================================
+// 3. PRECIPITATION-ANOMALY PRODUCTS
+// =============================================================================
+
+/*
+ * Expected asset names:
+ *
+ * Mean:
+ *   precip_anomaly_mean_4elnino_DJF
+ *   precip_anomaly_mean_4elnino_MAM
+ *   precip_anomaly_mean_4elnino_JJA
+ *   precip_anomaly_mean_4elnino_SON
+ *
+ * Event 2023/24:
+ *   precip_anomaly_elnino_2023_24_DJF
+ *   precip_anomaly_elnino_2023_24_MAM
+ *   precip_anomaly_elnino_2023_24_JJA
+ *   precip_anomaly_elnino_2023_24_SON
+ */
+
+var ANOMALY_PRODUCTS = [
+
+  {
+    key:
+      'mean_4_events',
+
+    eventLabel:
+      'Mean of 1982/83, 1997/98, 2015/16 and 2023/24',
+
+    assetPrefix:
+      'precip_anomaly_mean_4elnino_'
+  },
+
+  {
+    key:
+      'elnino_2023_24',
+
+    eventLabel:
+      'El Nino 2023/24',
+
+    assetPrefix:
+      'precip_anomaly_elnino_2023_24_'
+  }
+
+];
+
+
+// =============================================================================
+// 4. PROCESSING REGION
+// =============================================================================
+
+/*
+ * A simple rectangle avoids processing a complex national geometry.
+ *
+ * The biome, classification and anomaly masks determine which pixels
+ * are actually included.
+ */
+
 var BRAZIL_BBOX = ee.Geometry.Rectangle(
   [
     -74.5,
@@ -85,10 +164,15 @@ var BRAZIL_BBOX = ee.Geometry.Rectangle(
 
 
 // =============================================================================
-// 3. MAPBIOMAS CLASSIFICATION
+// 5. MAPBIOMAS CLASSIFICATION — 2025
 // =============================================================================
 
-// Select the required band before mosaic().
+/*
+ * Select the 2025 band before mosaic().
+ *
+ * This avoids carrying all annual bands through the computation.
+ */
+
 var classification = ee.ImageCollection(
   MAPBIOMAS_COLLECTION
 )
@@ -101,7 +185,7 @@ var classification = ee.ImageCollection(
 )
 
 .select(
-  'classification_' + YEAR
+  'classification_' + CLASSIFICATION_YEAR
 )
 
 .mosaic()
@@ -116,7 +200,7 @@ var classification = ee.ImageCollection(
 
 
 print(
-  'Classification:',
+  'MapBiomas classification:',
   classification
 );
 
@@ -128,7 +212,7 @@ print(
 
 
 // =============================================================================
-// 4. BIOMES
+// 6. BIOMES
 // =============================================================================
 
 var biomes = ee.Image(
@@ -151,17 +235,24 @@ print(
 
 
 // =============================================================================
-// 5. PRECIPITATION ANOMALY
+// 7. LOAD PRECIPITATION ANOMALY
 // =============================================================================
 
-function loadAnomaly(period) {
+function loadAnomaly(
+  product,
+  period
+) {
 
-  return ee.Image(
+  var assetId =
 
     PRECIP_DIR +
-    '/precip_anomaly_elnino_' +
-    period
+    '/' +
+    product.assetPrefix +
+    period;
 
+
+  return ee.Image(
+    assetId
   )
 
   .select(
@@ -188,10 +279,11 @@ function loadAnomaly(period) {
 
 
 // =============================================================================
-// 6. PIXEL AREA
+// 8. PIXEL AREA
 // =============================================================================
 
 // Area in hectares.
+
 var pixelAreaHa = ee.Image
   .pixelArea()
 
@@ -205,53 +297,256 @@ var pixelAreaHa = ee.Image
 
 
 // =============================================================================
-// 7. CONVERT ONE CLASS GROUP TO A TABLE
+// 9. INTERNAL CLASS + ANOMALY ENCODING
 // =============================================================================
 
 /*
- * Grouped-result structure:
+ * Biome is not encoded because every task processes only one biome.
  *
- * class
- *   └── precip_anomaly_mm
- *         └── sum(area_ha)
+ * Class and anomaly are temporarily encoded as:
+ *
+ *   group_id =
+ *       class × GROUP_STRIDE
+ *       + anomaly
+ *       + ANOMALY_OFFSET
+ *
+ * The values are decoded before CSV export.
+ *
+ * This creates one grouping level instead of:
+ *
+ *   class
+ *     └── anomaly
+ *           └── area
  */
 
-function convertClassGroup(
-  classGroup,
+var ANOMALY_OFFSET = 100000;
+
+var GROUP_STRIDE = 200001;
+
+
+// =============================================================================
+// 10. CALCULATE ONE PRODUCT × PERIOD × BIOME
+// =============================================================================
+
+function calculateProductPeriodBiome(
+  product,
   period,
-  biomeId
+  biomeIdValue
 ) {
 
-  classGroup = ee.Dictionary(
-    classGroup
+  var biomeId = ee.Number(
+    biomeIdValue
   );
 
 
-  var classId = ee.Number(
+  // ---------------------------------------------------------------------------
+  // Anomaly product
+  // ---------------------------------------------------------------------------
 
-    classGroup.get(
-      'class'
+  var anomaly = loadAnomaly(
+    product,
+    period
+  );
+
+
+  // ---------------------------------------------------------------------------
+  // Biome mask
+  // ---------------------------------------------------------------------------
+
+  var biomeMask = biomes.eq(
+    biomeId
+  );
+
+
+  /*
+   * Include only pixels valid in:
+   *
+   *   1. MapBiomas classification;
+   *   2. precipitation anomaly;
+   *   3. selected biome.
+   */
+
+  var validMask = classification
+    .mask()
+
+    .and(
+      anomaly.mask()
+    )
+
+    .and(
+      biomeMask
+    );
+
+
+  // ---------------------------------------------------------------------------
+  // MapBiomas class
+  // ---------------------------------------------------------------------------
+
+  var classImage = classification
+
+    .updateMask(
+      validMask
+    )
+
+    .toInt32();
+
+
+  // ---------------------------------------------------------------------------
+  // Precipitation anomaly
+  // ---------------------------------------------------------------------------
+
+  var anomalyImage = anomaly
+
+    .updateMask(
+      validMask
+    )
+
+    .toInt32();
+
+
+  // ---------------------------------------------------------------------------
+  // Encode class + anomaly
+  // ---------------------------------------------------------------------------
+
+  var groupId = classImage
+
+    .multiply(
+      GROUP_STRIDE
+    )
+
+    .add(
+      anomalyImage
+    )
+
+    .add(
+      ANOMALY_OFFSET
+    )
+
+    .rename(
+      'group_id'
+    )
+
+    .toInt32();
+
+
+  /*
+   * Reduction-image bands:
+   *
+   *   0 = area_ha
+   *   1 = group_id
+   */
+
+  var reductionImage = pixelAreaHa
+
+    .updateMask(
+      validMask
+    )
+
+    .addBands(
+      groupId
+    );
+
+
+  // ---------------------------------------------------------------------------
+  // Grouped reduction
+  // ---------------------------------------------------------------------------
+
+  var result = reductionImage.reduceRegion({
+
+    reducer:
+      ee.Reducer
+        .sum()
+
+        .group({
+
+          groupField:
+            1,
+
+          groupName:
+            'group_id'
+
+        }),
+
+    geometry:
+      BRAZIL_BBOX,
+
+    scale:
+      SCALE,
+
+    crs:
+      classification.projection(),
+
+    maxPixels:
+      1e13,
+
+    tileScale:
+      TILE_SCALE
+
+  });
+
+
+  // ---------------------------------------------------------------------------
+  // Empty-result protection
+  // ---------------------------------------------------------------------------
+
+  var groups = ee.List(
+
+    ee.Dictionary(
+      result
+    )
+
+    .get(
+      'groups',
+      ee.List([])
     )
 
   );
 
 
-  var anomalyGroups = ee.List(
+  // ---------------------------------------------------------------------------
+  // Decode groups and create output table
+  // ---------------------------------------------------------------------------
 
-    classGroup.get(
-      'groups'
-    )
+  var rows = groups.map(
 
-  );
+    function(groupItem) {
 
-
-  var rows = anomalyGroups.map(
-
-    function(anomalyGroup) {
-
-      anomalyGroup = ee.Dictionary(
-        anomalyGroup
+      groupItem = ee.Dictionary(
+        groupItem
       );
+
+
+      var encoded = ee.Number(
+
+        groupItem.get(
+          'group_id'
+        )
+
+      );
+
+
+      // Decode MapBiomas class.
+
+      var classId = encoded
+
+        .divide(
+          GROUP_STRIDE
+        )
+
+        .floor();
+
+
+      // Decode signed precipitation anomaly.
+
+      var precipAnomaly = encoded
+
+        .mod(
+          GROUP_STRIDE
+        )
+
+        .subtract(
+          ANOMALY_OFFSET
+        );
 
 
       return ee.Feature(
@@ -260,13 +555,19 @@ function convertClassGroup(
 
         {
 
-          year:
-            YEAR,
+          classification_year:
+            CLASSIFICATION_YEAR,
+
+          anomaly_product:
+            product.key,
+
+          event_label:
+            product.eventLabel,
 
           period:
             period,
 
-          // Hardcoded from the current biome export.
+          // Hardcoded from the current task.
           biome:
             biomeId,
 
@@ -274,12 +575,13 @@ function convertClassGroup(
             classId,
 
           precip_anomaly_mm:
-            anomalyGroup.get(
-              'precip_anomaly_mm'
-            ),
+            precipAnomaly,
+
+          anomaly_bin_mm:
+            ANOMALY_BIN_MM,
 
           area_ha:
-            anomalyGroup.get(
+            groupItem.get(
               'sum'
             )
 
@@ -300,252 +602,98 @@ function convertClassGroup(
 
 
 // =============================================================================
-// 8. CALCULATE ONE PERIOD FOR ONE BIOME
+// 11. EXPORTS
 // =============================================================================
 
-function calculateBiomePeriod(
-  period,
-  biomeId
-) {
+/*
+ * Creates one task for every:
+ *
+ *   anomaly product
+ *   × period
+ *   × biome
+ *
+ * Total:
+ *
+ *   2 × 4 × 6 = 48 tasks
+ */
 
-  biomeId = ee.Number(
-    biomeId
-  );
+ANOMALY_PRODUCTS.forEach(
 
+  function(product) {
 
-  var anomaly = loadAnomaly(
-    period
-  );
+    PERIODS.forEach(
 
+      function(period) {
 
-  var biomeMask = biomes.eq(
-    biomeId
-  );
+        BIOME_IDS.forEach(
 
+          function(biomeId) {
 
-  /*
-   * A pixel must be valid in:
-   *
-   * 1. MapBiomas classification;
-   * 2. precipitation anomaly;
-   * 3. selected biome.
-   */
+            var outputName =
 
-  var validMask = classification
-    .mask()
+              OUTPUT_PREFIX +
+              '-' +
+              product.key +
+              '-' +
+              CLASSIFICATION_YEAR +
+              '-' +
+              period +
+              '-biome-' +
+              biomeId;
 
-    .and(
-      anomaly.mask()
-    )
 
-    .and(
-      biomeMask
-    );
+            var areas = calculateProductPeriodBiome(
 
+              product,
 
-  var classImage = classification
+              period,
 
-    .updateMask(
-      validMask
-    )
+              biomeId
 
-    .rename(
-      'class'
-    )
+            );
 
-    .toInt16();
 
+            Export.table.toDrive({
 
-  var anomalyImage = anomaly
+              collection:
+                areas,
 
-    .updateMask(
-      validMask
-    )
+              description:
+                outputName,
 
-    .rename(
-      'precip_anomaly_mm'
-    )
+              folder:
+                DRIVE_FOLDER,
 
-    .toInt32();
+              fileNamePrefix:
+                outputName,
 
+              fileFormat:
+                'CSV',
 
-  /*
-   * Input-band order:
-   *
-   *   0 = area_ha
-   *   1 = class
-   *   2 = precip_anomaly_mm
-   */
+              selectors: [
 
-  var reductionImage = pixelAreaHa
+                'classification_year',
+                'anomaly_product',
+                'event_label',
+                'period',
+                'biome',
+                'class',
+                'precip_anomaly_mm',
+                'anomaly_bin_mm',
+                'area_ha'
 
-    .updateMask(
-      validMask
-    )
+              ]
 
-    .addBands(
-      classImage
-    )
+            });
 
-    .addBands(
-      anomalyImage
-    );
 
+            print(
+              'Configured:',
+              outputName
+            );
 
-  /*
-   * Nested grouping:
-   *
-   * class
-   *   └── precipitation anomaly
-   *         └── area
-   */
+          }
 
-  var reducer = ee.Reducer
-    .sum()
-
-    .group(
-      1,
-      'precip_anomaly_mm'
-    )
-
-    .group(
-      1,
-      'class'
-    );
-
-
-  var result = reductionImage.reduceRegion({
-
-    reducer:
-      reducer,
-
-    geometry:
-      BRAZIL_BBOX,
-
-    scale:
-      SCALE,
-
-    crs:
-      classification.projection(),
-
-    maxPixels:
-      1e13,
-
-    tileScale:
-      TILE_SCALE
-
-  });
-
-
-  // Empty-list fallback.
-  var classGroups = ee.List(
-
-    ee.Dictionary(
-      result
-    )
-
-    .get(
-      'groups',
-      ee.List([])
-    )
-
-  );
-
-
-  var tables = classGroups.map(
-
-    function(classGroup) {
-
-      return convertClassGroup(
-
-        classGroup,
-
-        period,
-
-        biomeId
-
-      );
-
-    }
-
-  );
-
-
-  return ee.FeatureCollection(
-    tables
-  )
-
-  .flatten();
-
-}
-
-
-// =============================================================================
-// 9. EXPORT ONE CSV PER PERIOD AND BIOME
-// =============================================================================
-
-PERIODS.forEach(
-
-  function(period) {
-
-    BIOME_IDS.forEach(
-
-      function(biomeId) {
-
-        var outputName =
-
-          OUTPUT_PREFIX +
-          '-' +
-          YEAR +
-          '-' +
-          period +
-          '-biome-' +
-          biomeId;
-
-
-        var areas = calculateBiomePeriod(
-
-          period,
-
-          biomeId
-
-        );
-
-
-        Export.table.toDrive({
-
-          collection:
-            areas,
-
-          description:
-            outputName,
-
-          folder:
-            DRIVE_FOLDER,
-
-          fileNamePrefix:
-            outputName,
-
-          fileFormat:
-            'CSV',
-
-          selectors: [
-
-            'year',
-            'period',
-            'biome',
-            'class',
-            'precip_anomaly_mm',
-            'area_ha'
-
-          ]
-
-        });
-
-
-        print(
-          'Configured:',
-          outputName
         );
 
       }
@@ -558,28 +706,48 @@ PERIODS.forEach(
 
 
 // =============================================================================
-// 10. OPTIONAL SINGLE-BIOME TEST
+// 12. OPTIONAL SINGLE-TASK TEST
 // =============================================================================
 
 /*
- * Uncomment before launching all tasks to inspect a sample.
+ * Uncomment this block before launching every task.
+ *
+ * Product index:
+ *
+ *   0 = four-event mean
+ *   1 = El Niño 2023/24
  */
 
 /*
-var test = calculateBiomePeriod(
+var testProduct =
+  ANOMALY_PRODUCTS[1];
+
+
+var test = calculateProductPeriodBiome(
+
+  testProduct,
+
   'SON',
+
   1
+
 );
 
+
 print(
-  'SON — biome 1 test:',
-  test.limit(20)
+
+  'Test — 2023/24, SON, biome 1:',
+
+  test.limit(
+    20
+  )
+
 );
 */
 
 
 // =============================================================================
-// 11. VISUAL CHECK
+// 13. VISUAL CHECK
 // =============================================================================
 
 var VIS_ANOMALY = {
@@ -618,20 +786,43 @@ Map.setCenter(
 );
 
 
+// Four-event mean.
+
 Map.addLayer(
 
   loadAnomaly(
+    ANOMALY_PRODUCTS[0],
     'SON'
   ),
 
   VIS_ANOMALY,
 
-  'SON precipitation anomaly',
+  'Mean anomaly — SON',
 
   true
 
 );
 
+
+// El Niño 2023/24.
+
+Map.addLayer(
+
+  loadAnomaly(
+    ANOMALY_PRODUCTS[1],
+    'SON'
+  ),
+
+  VIS_ANOMALY,
+
+  'El Nino 2023/24 — SON',
+
+  false
+
+);
+
+
+// MapBiomas classification.
 
 Map.addLayer(
 
@@ -639,12 +830,15 @@ Map.addLayer(
 
   {},
 
-  'MapBiomas classification ' + YEAR,
+  'MapBiomas classification ' +
+  CLASSIFICATION_YEAR,
 
   false
 
 );
 
+
+// Biomes.
 
 Map.addLayer(
 
@@ -660,12 +854,20 @@ Map.addLayer(
 
 
 // =============================================================================
-// 12. FINAL CHECKS
+// 14. FINAL CHECKS
 // =============================================================================
 
 print(
+  'Number of anomaly products:',
+  ANOMALY_PRODUCTS.length
+);
+
+
+print(
   'Number of export tasks:',
-  PERIODS.length * BIOME_IDS.length
+  ANOMALY_PRODUCTS.length *
+  PERIODS.length *
+  BIOME_IDS.length
 );
 
 

@@ -57,7 +57,7 @@
  *   eventos de El Niño
  *
  * colunas:
- *   DJF | MAM | JJA | SON
+ *   SON | DJF | MAM | JJA
  *
  *
  * CADA MAPA MOSTRA SIMULTANEAMENTE:
@@ -214,7 +214,7 @@ var EVENTOS = [
 /*
  * Ordem visual do FACET:
  *
- * DJF | MAM | JJA | SON
+ * SON | DJF | MAM | JJA
  *
  *
  * Ordem cronológica usada no GRÁFICO:
@@ -313,10 +313,10 @@ var TRIMESTRES = {
 
 var NOMES_TRIMESTRES = [
 
+  'SON',
   'DJF',
   'MAM',
-  'JJA',
-  'SON'
+  'JJA'
 
 ];
 

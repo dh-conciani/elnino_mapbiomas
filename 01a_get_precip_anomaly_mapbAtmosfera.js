@@ -60,7 +60,10 @@
  *   eventos de El Niño
  *
  * colunas:
- *   SON | DJF | MAM | JJA
+ *   SON | DJF | MAM | JJA | SET–AGO
+ *
+ * SET–AGO representa o período completo do evento:
+ * setembro do ano inicial até agosto do ano seguinte (12 meses).
  *
  *
  * CADA MAPA MOSTRA:
@@ -68,6 +71,9 @@
  * 1. Brasil:
  *      anomalia da precipitação
  *      vermelho -> branco -> azul
+ *
+ *      Para SET–AGO, a anomalia corresponde ao total acumulado de 12 meses
+ *      menos a média de referência dos períodos setembro–agosto.
  *
  * 2. Contorno da região Niño 3.4
  *
@@ -142,6 +148,9 @@ var EVENTOS = [
       1998,
 
     SON:
+      1997,
+
+    ANUAL:
       1997
 
   },
@@ -165,6 +174,9 @@ var EVENTOS = [
       2016,
 
     SON:
+      2015,
+
+    ANUAL:
       2015
 
   },
@@ -188,6 +200,9 @@ var EVENTOS = [
       2024,
 
     SON:
+      2023,
+
+    ANUAL:
       2023
 
   }
@@ -196,18 +211,23 @@ var EVENTOS = [
 
 
 // =============================================================================
-// 3. TRIMESTRES
+// 3. PERÍODOS SAZONAIS E ANUAL SETEMBRO–AGOSTO
 // =============================================================================
 
 /*
  * Ordem visual do FACET:
  *
- * SON | DJF | MAM | JJA
+ * SON | DJF | MAM | JJA | SET–AGO
  *
+ * O período ANUAL começa em setembro do ano inicial e termina em agosto
+ * do ano seguinte, totalizando 12 meses.
  *
- * Ordem cronológica usada no GRÁFICO:
+ * Ordem cronológica usada no GRÁFICO DA TSM:
  *
  * SON -> DJF -> MAM -> JJA
+ *
+ * O agregado SET–AGO não entra na linha temporal sazonal da TSM porque é
+ * um resumo dos mesmos 12 meses, não uma etapa posterior da sequência.
  */
 
 
@@ -218,11 +238,17 @@ var TRIMESTRES = {
     mesInicial:
       12,
 
+    duracaoMeses:
+      3,
+
     label:
       'Dez–Jan–Fev',
 
     ordemGrafico:
       2,
+
+    tipoPeriodo:
+      'trimestral',
 
     anosEventos: [
       1982,
@@ -239,11 +265,17 @@ var TRIMESTRES = {
     mesInicial:
       3,
 
+    duracaoMeses:
+      3,
+
     label:
       'Mar–Abr–Mai',
 
     ordemGrafico:
       3,
+
+    tipoPeriodo:
+      'trimestral',
 
     anosEventos: [
       1983,
@@ -260,11 +292,17 @@ var TRIMESTRES = {
     mesInicial:
       6,
 
+    duracaoMeses:
+      3,
+
     label:
       'Jun–Jul–Ago',
 
     ordemGrafico:
       4,
+
+    tipoPeriodo:
+      'trimestral',
 
     anosEventos: [
       1983,
@@ -281,12 +319,47 @@ var TRIMESTRES = {
     mesInicial:
       9,
 
+    duracaoMeses:
+      3,
+
     label:
       'Set–Out–Nov',
 
     ordemGrafico:
       1,
 
+    tipoPeriodo:
+      'trimestral',
+
+    anosEventos: [
+      1982,
+      1997,
+      2015,
+      2023
+    ]
+
+  },
+
+
+  ANUAL: {
+
+    mesInicial:
+      9,
+
+    duracaoMeses:
+      12,
+
+    label:
+      'Set–Ago',
+
+    ordemGrafico:
+      5,
+
+    tipoPeriodo:
+      'anual_setembro_agosto',
+
+    // Anos de início dos eventos. Dentro da referência 1991–2020,
+    // somente 1997 e 2015 são removidos; 2023 está fora da referência.
     anosEventos: [
       1982,
       1997,
@@ -299,6 +372,19 @@ var TRIMESTRES = {
 };
 
 
+// Períodos mostrados nos mapas, resumos e exportações.
+var NOMES_PERIODOS = [
+
+  'SON',
+  'DJF',
+  'MAM',
+  'JJA',
+  'ANUAL'
+
+];
+
+
+// Somente as quatro estações entram na linha cronológica do gráfico da TSM.
 var NOMES_TRIMESTRES = [
 
   'SON',
@@ -689,18 +775,30 @@ var oisst = ee.ImageCollection(
 
 
 // =============================================================================
-// 10. PRECIPITAÇÃO TOTAL TRIMESTRAL
+// 10. PRECIPITAÇÃO TOTAL DO PERÍODO
 // =============================================================================
 
-function calcularTotalTrimestral(
+/*
+ * duracaoMeses = 3  -> trimestre
+ * duracaoMeses = 12 -> setembro do ano inicial até agosto do ano seguinte
+ */
+
+function calcularTotalPeriodo(
   anoInicial,
-  mesInicial
+  mesInicial,
+  duracaoMeses
 ) {
 
 
   anoInicial =
     ee.Number(
       anoInicial
+    );
+
+
+  duracaoMeses =
+    ee.Number(
+      duracaoMeses
     );
 
 
@@ -714,7 +812,7 @@ function calcularTotalTrimestral(
 
 
   var fim = inicio.advance(
-    3,
+    duracaoMeses,
     'month'
   );
 
@@ -732,7 +830,26 @@ function calcularTotalTrimestral(
       'precipitacao_mm'
     )
 
-    .toFloat();
+    .toFloat()
+
+    .set({
+
+      start_year:
+        anoInicial,
+
+      start_month:
+        mesInicial,
+
+      duration_months:
+        duracaoMeses,
+
+      end_exclusive:
+        fim.format('YYYY-MM-dd'),
+
+      unit:
+        'mm'
+
+    });
 
 }
 
@@ -804,11 +921,13 @@ function criarColecaoReferencia(
           );
 
 
-        return calcularTotalTrimestral(
+        return calcularTotalPeriodo(
 
           ano,
 
-          config.mesInicial
+          config.mesInicial,
+
+          config.duracaoMeses
 
         )
 
@@ -877,11 +996,13 @@ function calcularAnomaliaEvento(
 
 
   var observado =
-    calcularTotalTrimestral(
+    calcularTotalPeriodo(
 
       anoEvento,
 
-      config.mesInicial
+      config.mesInicial,
+
+      config.duracaoMeses
 
     );
 
@@ -918,6 +1039,21 @@ function calcularAnomaliaEvento(
       trimester:
         nomeTrimestre,
 
+      period_label:
+        config.label,
+
+      period_type:
+        config.tipoPeriodo,
+
+      duration_months:
+        config.duracaoMeses,
+
+      start_month:
+        config.mesInicial,
+
+      start_year:
+        anoEvento,
+
       unit:
         'mm',
 
@@ -926,6 +1062,15 @@ function calcularAnomaliaEvento(
 
       reference:
         'years_without_strong_el_nino',
+
+      reference_period_definition:
+        ee.String(
+          ee.Algorithms.If(
+            ee.Number(config.duracaoMeses).eq(12),
+            'September_of_start_year_to_August_of_following_year',
+            'three_month_season'
+          )
+        ),
 
       source:
         MAPBIOMAS_PRECIP_ASSET
@@ -936,18 +1081,25 @@ function calcularAnomaliaEvento(
 
 
 // =============================================================================
-// 15. IMAGEM TRIMESTRAL DA ANOMALIA DA TSM
+// 15. IMAGEM MÉDIA DA ANOMALIA DA TSM NO PERÍODO
 // =============================================================================
 
-function criarImagemSSTTrimestral(
+function criarImagemSSTPeriodo(
   anoInicial,
-  mesInicial
+  mesInicial,
+  duracaoMeses
 ) {
 
 
   anoInicial =
     ee.Number(
       anoInicial
+    );
+
+
+  duracaoMeses =
+    ee.Number(
+      duracaoMeses
     );
 
 
@@ -961,7 +1113,7 @@ function criarImagemSSTTrimestral(
 
 
   var fim = inicio.advance(
-    3,
+    duracaoMeses,
     'month'
   );
 
@@ -988,6 +1140,9 @@ function criarImagemSSTTrimestral(
 
       start_month:
         mesInicial,
+
+      duration_months:
+        duracaoMeses,
 
       unit:
         'degrees_Celsius',
@@ -1191,7 +1346,7 @@ EVENTOS.forEach(
     ] = {};
 
 
-    NOMES_TRIMESTRES.forEach(
+    NOMES_PERIODOS.forEach(
 
       function(nomeTrimestre) {
 
@@ -1213,11 +1368,13 @@ EVENTOS.forEach(
         // ---------------------------------------------------------------------
 
         var imagemSST =
-          criarImagemSSTTrimestral(
+          criarImagemSSTPeriodo(
 
             ano,
 
-            config.mesInicial
+            config.mesInicial,
+
+            config.duracaoMeses
 
           );
 
@@ -1311,6 +1468,12 @@ EVENTOS.forEach(
               period_label:
                 config.label,
 
+              period_type:
+                config.tipoPeriodo,
+
+              duration_months:
+                config.duracaoMeses,
+
               chart_order:
                 config.ordemGrafico,
 
@@ -1341,6 +1504,18 @@ EVENTOS.forEach(
 var tabelaSST =
   ee.FeatureCollection(
     featuresSST
+  );
+
+
+// A linha temporal da TSM usa somente SON, DJF, MAM e JJA.
+// O período ANUAL é um agregado dos mesmos 12 meses e permanece na tabela,
+// nas caixas dos mapas e nas exportações, mas não é conectado à sequência.
+var tabelaSSTSazonal = tabelaSST
+  .filter(
+    ee.Filter.neq(
+      'trimester',
+      'ANUAL'
+    )
   );
 
 
@@ -1386,6 +1561,12 @@ function calcularMediaAnomalias(
 ) {
 
 
+  var config =
+    TRIMESTRES[
+      nomeTrimestre
+    ];
+
+
   return criarColecaoAnomaliasEventos(
     nomeTrimestre
   )
@@ -1396,7 +1577,16 @@ function calcularMediaAnomalias(
       'media_anomalias_mm'
     )
 
-    .toFloat();
+    .toFloat()
+
+    .set({
+      period: nomeTrimestre,
+      period_label: config.label,
+      period_type: config.tipoPeriodo,
+      duration_months: config.duracaoMeses,
+      n_events: EVENTOS.length,
+      unit: 'mm'
+    });
 
 }
 
@@ -1408,6 +1598,12 @@ function calcularMediaAnomalias(
 function calcularDesvioPadraoAnomalias(
   nomeTrimestre
 ) {
+
+
+  var config =
+    TRIMESTRES[
+      nomeTrimestre
+    ];
 
 
   return criarColecaoAnomaliasEventos(
@@ -1422,7 +1618,16 @@ function calcularDesvioPadraoAnomalias(
       'stddev_anomalias_mm'
     )
 
-    .toFloat();
+    .toFloat()
+
+    .set({
+      period: nomeTrimestre,
+      period_label: config.label,
+      period_type: config.tipoPeriodo,
+      duration_months: config.duracaoMeses,
+      n_events: EVENTOS.length,
+      unit: 'mm'
+    });
 
 }
 
@@ -1436,7 +1641,7 @@ var resultadosMedia = {};
 var resultadosStdDev = {};
 
 
-NOMES_TRIMESTRES.forEach(
+NOMES_PERIODOS.forEach(
 
   function(nomeTrimestre) {
 
@@ -1710,7 +1915,7 @@ function criarMapaFacet(
 
         evento.label +
         ' | ' +
-        nomeTrimestre,
+        TRIMESTRES[nomeTrimestre].label,
 
       style: {
 
@@ -1989,7 +2194,7 @@ function criarCabecalhoFacet() {
   );
 
 
-  NOMES_TRIMESTRES.forEach(
+  NOMES_PERIODOS.forEach(
 
     function(nomeTrimestre) {
 
@@ -2043,7 +2248,7 @@ function criarCabecalhoFacet() {
 
 
 // =============================================================================
-// 31. MÁXIMO DA TSM ENTRE OS QUATRO PERÍODOS EXIBIDOS
+// 31. MÁXIMO DA TSM ENTRE OS CINCO PERÍODOS EXIBIDOS
 // =============================================================================
 
 function calcularMaxSSTEvento(
@@ -2054,7 +2259,7 @@ function calcularMaxSSTEvento(
   var valores = [];
 
 
-  NOMES_TRIMESTRES.forEach(
+  NOMES_PERIODOS.forEach(
 
     function(nomeTrimestre) {
 
@@ -2161,7 +2366,7 @@ function criarLegendaAnomalia() {
     ui.Label({
 
       value:
-        'mm por trimestre',
+        'mm por período',
 
       style: {
 
@@ -2455,7 +2660,7 @@ function criarLegendaIntensidadeSST() {
 
 
 // =============================================================================
-// 35. CONSTRUIR O FACET 3 × 4
+// 35. CONSTRUIR O FACET 3 × 5
 // =============================================================================
 
 var mapasFacet = [];
@@ -2696,7 +2901,7 @@ EVENTOS.forEach(
     // QUATRO MAPAS
     // -------------------------------------------------------------------------
 
-    NOMES_TRIMESTRES.forEach(
+    NOMES_PERIODOS.forEach(
 
       function(nomeTrimestre) {
 
@@ -2757,7 +2962,7 @@ var linkerFacet = ui.Map.Linker(
 
 var graficoSST = ui.Chart.feature.groups(
 
-  tabelaSST,
+  tabelaSSTSazonal,
 
   'chart_order',
 
@@ -2924,7 +3129,7 @@ var painelTitulo =
       ui.Label({
 
         value:
-          'Brasil: anomalia de precipitação | Niño 3.4: valores e classificação OISST',
+          'Brasil: anomalia trimestral e Set–Ago | Niño 3.4: valores e classificação OISST',
 
         style: {
 
@@ -3135,7 +3340,7 @@ mapasFacet[0].setCenter(
 
 print(
 
-  'Anomalias sazonais da TSM na região Niño 3.4',
+  'Anomalias sazonais e Set–Ago da TSM na região Niño 3.4',
 
   tabelaSST
 
@@ -3151,7 +3356,7 @@ EVENTOS.forEach(
   function(evento) {
 
 
-    NOMES_TRIMESTRES.forEach(
+    NOMES_PERIODOS.forEach(
 
       function(nomeTrimestre) {
 
@@ -3184,7 +3389,7 @@ EVENTOS.forEach(
 // 45. VERIFICAR ANOS DE REFERÊNCIA
 // =============================================================================
 
-NOMES_TRIMESTRES.forEach(
+NOMES_PERIODOS.forEach(
 
   function(nomeTrimestre) {
 
@@ -3218,7 +3423,7 @@ NOMES_TRIMESTRES.forEach(
 
 
 // =============================================================================
-// 46. EXPORTAR 12 ANOMALIAS DE PRECIPITAÇÃO
+// 46. EXPORTAR 15 ANOMALIAS DE PRECIPITAÇÃO
 // =============================================================================
 
 EVENTOS.forEach(
@@ -3226,7 +3431,7 @@ EVENTOS.forEach(
   function(evento) {
 
 
-    NOMES_TRIMESTRES.forEach(
+    NOMES_PERIODOS.forEach(
 
       function(nomeTrimestre) {
 
@@ -3293,7 +3498,7 @@ EVENTOS.forEach(
 
 
 // =============================================================================
-// 47. EXPORTAR 12 MAPAS DE ANOMALIA DA TSM
+// 47. EXPORTAR 15 MAPAS DE ANOMALIA DA TSM
 // =============================================================================
 
 EVENTOS.forEach(
@@ -3301,7 +3506,7 @@ EVENTOS.forEach(
   function(evento) {
 
 
-    NOMES_TRIMESTRES.forEach(
+    NOMES_PERIODOS.forEach(
 
       function(nomeTrimestre) {
 
@@ -3337,6 +3542,15 @@ EVENTOS.forEach(
 
             trimester:
               nomeTrimestre,
+
+            period_label:
+              TRIMESTRES[nomeTrimestre].label,
+
+            period_type:
+              TRIMESTRES[nomeTrimestre].tipoPeriodo,
+
+            duration_months:
+              TRIMESTRES[nomeTrimestre].duracaoMeses,
 
             nino34_sst_anomaly_C:
 
@@ -3421,6 +3635,8 @@ Export.table.toDrive({
     'event_label',
     'trimester',
     'period_label',
+    'period_type',
+    'duration_months',
     'year',
     'sst_anomaly_C',
     'intensity'
@@ -3434,7 +3650,7 @@ Export.table.toDrive({
 // 49. EXPORTAR MÉDIA DAS ANOMALIAS DE PRECIPITAÇÃO
 // =============================================================================
 
-NOMES_TRIMESTRES.forEach(
+NOMES_PERIODOS.forEach(
 
   function(nomeTrimestre) {
 
@@ -3493,7 +3709,7 @@ NOMES_TRIMESTRES.forEach(
 // 50. EXPORTAR DESVIO-PADRÃO ENTRE EVENTOS
 // =============================================================================
 
-NOMES_TRIMESTRES.forEach(
+NOMES_PERIODOS.forEach(
 
   function(nomeTrimestre) {
 
@@ -3573,7 +3789,17 @@ print(
 
 
 print(
-  'Brasil: anomalia sazonal de precipitação — MapBiomas Atmosfera.'
+  'Brasil: anomalia sazonal e anual Set–Ago de precipitação — MapBiomas Atmosfera.'
+);
+
+
+print(
+  'Período ANUAL: setembro do ano inicial até agosto do ano seguinte (12 meses).'
+);
+
+
+print(
+  'Referência ANUAL: períodos Set–Ago iniciados entre 1991 e 2020, excluindo 1997 e 2015.'
 );
 
 
@@ -3599,5 +3825,5 @@ print(
 
 
 print(
-  'Gráfico da TSM: ordem cronológica SON → DJF → MAM → JJA.'
+  'Gráfico da TSM: ordem cronológica SON → DJF → MAM → JJA; o agregado Set–Ago não é conectado à linha.'
 );

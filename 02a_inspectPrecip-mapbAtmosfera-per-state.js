@@ -7,15 +7,18 @@
  * 1. Anomalia média de precipitação por estado
  *    - gráficos de barras
  *    - séries: 1997/98, 2015/16, 2023/24 e média dos 3 eventos
- *    - eixo X: SON | DJF | MAM | JJA
+ *    - eixo X: SON | DJF | MAM | JJA | Set–Ago
  *
- * 2. Precipitação acumulada trimestral por estado
+ * 2. Precipitação acumulada por período por estado
  *    - gráficos de barras
  *    - séries:
  *        a) média dos 3 eventos de El Niño
  *        b) acumulado do evento 2023/24
  *        c) média de referência 1991–2020 sem os eventos fortes correspondentes
- *    - eixo X: SON | DJF | MAM | JJA
+ *    - eixo X: SON | DJF | MAM | JJA | Set–Ago
+ *
+ * O período Set–Ago acumula 12 meses, de setembro do ano inicial
+ * até agosto do ano seguinte.
  *
  * LAYOUT
  * ------
@@ -24,8 +27,11 @@
  * EXPORTAÇÕES
  * -----------
  * Este script exporta duas tabelas CSV:
- *   1. anomalia por estado, trimestre e evento
- *   2. acumulado por estado, trimestre e grupo de comparação
+ *   1. anomalia por estado, período e evento
+ *   2. acumulado por estado, período e grupo de comparação
+ *
+ * As duas tabelas incluem o período anual Set–Ago e também são exportadas
+ * em versões anuais separadas para facilitar análises posteriores.
  *******************************************************************************/
 
 
@@ -67,10 +73,10 @@ var CONFIG = {
     true,
 
   yMinAnomalia:
-    -350,
+    -1200,
 
   yMaxAnomalia:
-    350,
+    1200,
 
   usarEscalaAcumuladaFixa:
     true,
@@ -79,13 +85,13 @@ var CONFIG = {
     0,
 
   yMaxAcumulada:
-    1600
+    5000
 
 };
 
 
 // =============================================================================
-// 2. EVENTOS E TRIMESTRES
+// 2. EVENTOS E PERÍODOS
 // =============================================================================
 
 var EVENTOS = [
@@ -111,12 +117,23 @@ var EVENTOS = [
 ];
 
 
-var TRIMESTRES = [
+/*
+ * Para SON, DJF, MAM e JJA, duracaoMeses = 3.
+ *
+ * Para ANUAL, duracaoMeses = 12 e o período é:
+ *   setembro do ano inicial -> agosto do ano seguinte.
+ *
+ * Os anos em anosEventos são os anos de início de cada período.
+ */
+
+var PERIODOS = [
 
   {
     nome: 'SON',
     label: 'Set–Out–Nov',
     mesInicial: 9,
+    duracaoMeses: 3,
+    tipoPeriodo: 'trimestral',
     ordem: 1,
     anosEventos: [1997, 2015, 2023],
     anosExcluirReferencia: [1997, 2015]
@@ -126,6 +143,8 @@ var TRIMESTRES = [
     nome: 'DJF',
     label: 'Dez–Jan–Fev',
     mesInicial: 12,
+    duracaoMeses: 3,
+    tipoPeriodo: 'trimestral',
     ordem: 2,
     anosEventos: [1997, 2015, 2023],
     anosExcluirReferencia: [1997, 2015]
@@ -135,6 +154,8 @@ var TRIMESTRES = [
     nome: 'MAM',
     label: 'Mar–Abr–Mai',
     mesInicial: 3,
+    duracaoMeses: 3,
+    tipoPeriodo: 'trimestral',
     ordem: 3,
     anosEventos: [1998, 2016, 2024],
     anosExcluirReferencia: [1998, 2016]
@@ -144,9 +165,22 @@ var TRIMESTRES = [
     nome: 'JJA',
     label: 'Jun–Jul–Ago',
     mesInicial: 6,
+    duracaoMeses: 3,
+    tipoPeriodo: 'trimestral',
     ordem: 4,
     anosEventos: [1998, 2016, 2024],
     anosExcluirReferencia: [1998, 2016]
+  },
+
+  {
+    nome: 'ANUAL',
+    label: 'Set–Ago',
+    mesInicial: 9,
+    duracaoMeses: 12,
+    tipoPeriodo: 'anual_setembro_agosto',
+    ordem: 5,
+    anosEventos: [1997, 2015, 2023],
+    anosExcluirReferencia: [1997, 2015]
   }
 
 ];
@@ -362,6 +396,12 @@ function reduzirAnomaliaPorEstado(
       trimestre_label:
         propriedadesFixas.trimestre_label,
 
+      period_type:
+        propriedadesFixas.period_type,
+
+      duration_months:
+        propriedadesFixas.duration_months,
+
       chart_order:
         propriedadesFixas.chart_order,
 
@@ -412,19 +452,19 @@ function calcularMediaAnomaliaElNino(
     event_label: 'Média El Niño — 3 eventos',
     trimester: nomeTrimestre,
     n_events: EVENTOS.length,
-    unit: 'mm_per_trimester'
+    unit: 'mm_per_period'
   });
 
 }
 
 
-TRIMESTRES.forEach(function(trimestre) {
+PERIODOS.forEach(function(periodo) {
 
   EVENTOS.forEach(function(evento) {
 
     var imagem = carregarImagemAnomaliaEvento(
       evento.nome,
-      trimestre.nome
+      periodo.nome
     );
 
     colecoesAnomalia.push(
@@ -434,9 +474,11 @@ TRIMESTRES.forEach(function(trimestre) {
           evento: evento.nome,
           event_label: evento.label,
           chart_series: evento.chartSeries,
-          trimestre: trimestre.nome,
-          trimestre_label: trimestre.label,
-          chart_order: trimestre.ordem,
+          trimestre: periodo.nome,
+          trimestre_label: periodo.label,
+          period_type: periodo.tipoPeriodo,
+          duration_months: periodo.duracaoMeses,
+          chart_order: periodo.ordem,
           n_events: 1
         }
       )
@@ -446,7 +488,7 @@ TRIMESTRES.forEach(function(trimestre) {
 
 
   var mediaAnomaliaElNino = calcularMediaAnomaliaElNino(
-    trimestre.nome
+    periodo.nome
   );
 
 
@@ -457,9 +499,11 @@ TRIMESTRES.forEach(function(trimestre) {
         evento: 'elnino_mean',
         event_label: 'Média El Niño — 3 eventos',
         chart_series: '04_elnino_mean',
-        trimestre: trimestre.nome,
-        trimestre_label: trimestre.label,
-        chart_order: trimestre.ordem,
+        trimestre: periodo.nome,
+        trimestre_label: periodo.label,
+        period_type: periodo.tipoPeriodo,
+        duration_months: periodo.duracaoMeses,
+        chart_order: periodo.ordem,
         n_events: EVENTOS.length
       }
     )
@@ -471,6 +515,16 @@ TRIMESTRES.forEach(function(trimestre) {
 var tabelaAnomalia = ee.FeatureCollection(
   colecoesAnomalia
 ).flatten();
+
+
+// Subconjunto anual Set–Ago, útil para exportações e análises específicas.
+var tabelaAnomaliaAnual = tabelaAnomalia
+  .filter(
+    ee.Filter.eq(
+      'trimestre',
+      'ANUAL'
+    )
+  );
 
 
 // =============================================================================
@@ -568,12 +622,14 @@ var precipitacaoMensal = ee.ImageCollection.fromImages(
 );
 
 
-function calcularTotalTrimestral(
+function calcularTotalPeriodo(
   anoInicial,
-  mesInicial
+  mesInicial,
+  duracaoMeses
 ) {
 
   anoInicial = ee.Number(anoInicial);
+  duracaoMeses = ee.Number(duracaoMeses);
 
   var inicio = ee.Date.fromYMD(
     anoInicial,
@@ -582,7 +638,7 @@ function calcularTotalTrimestral(
   );
 
   var fim = inicio.advance(
-    3,
+    duracaoMeses,
     'month'
   );
 
@@ -605,7 +661,9 @@ function calcularTotalTrimestral(
     .set({
       start_year: anoInicial,
       start_month: mesInicial,
-      unit: 'mm_per_trimester'
+      duration_months: duracaoMeses,
+      end_exclusive: fim.format('YYYY-MM-dd'),
+      unit: 'mm_per_period'
     });
 
 }
@@ -639,9 +697,10 @@ function calcularMediaElNino(
 
   .map(function(ano) {
 
-    return calcularTotalTrimestral(
+    return calcularTotalPeriodo(
       ano,
-      trimestre.mesInicial
+      trimestre.mesInicial,
+      trimestre.duracaoMeses
     );
 
   });
@@ -663,9 +722,12 @@ function calcularMediaElNino(
     group: 'elnino_mean',
     group_label: 'El Niño — média 3 eventos',
     trimester: trimestre.nome,
+    period_label: trimestre.label,
+    period_type: trimestre.tipoPeriodo,
+    duration_months: trimestre.duracaoMeses,
     n_years: trimestre.anosEventos.length,
     years: trimestre.anosEventos.join(','),
-    unit: 'mm_per_trimester'
+    unit: 'mm_per_period'
   });
 
 }
@@ -680,9 +742,10 @@ function calcularAcumuladoEvento2023_24(
   var anoInicial = trimestre.anosEventos[2];
 
 
-  return calcularTotalTrimestral(
+  return calcularTotalPeriodo(
     anoInicial,
-    trimestre.mesInicial
+    trimestre.mesInicial,
+    trimestre.duracaoMeses
   )
 
   .rename(
@@ -695,9 +758,12 @@ function calcularAcumuladoEvento2023_24(
     group: 'elnino_2023_24',
     group_label: 'El Niño 2023/24',
     trimester: trimestre.nome,
+    period_label: trimestre.label,
+    period_type: trimestre.tipoPeriodo,
+    duration_months: trimestre.duracaoMeses,
     start_year: anoInicial,
     n_years: 1,
-    unit: 'mm_per_trimester'
+    unit: 'mm_per_period'
   });
 
 }
@@ -714,9 +780,10 @@ function calcularMediaReferencia(
 
   var imagens = anos.map(function(ano) {
 
-    return calcularTotalTrimestral(
+    return calcularTotalPeriodo(
       ano,
-      trimestre.mesInicial
+      trimestre.mesInicial,
+      trimestre.duracaoMeses
     );
 
   });
@@ -738,10 +805,13 @@ function calcularMediaReferencia(
     group: 'reference_mean',
     group_label: 'Sem El Niño forte — 1991–2020',
     trimester: trimestre.nome,
+    period_label: trimestre.label,
+    period_type: trimestre.tipoPeriodo,
+    duration_months: trimestre.duracaoMeses,
     n_years: anos.size(),
     reference_period: '1991-2020',
     excluded_start_years: trimestre.anosExcluirReferencia.join(','),
-    unit: 'mm_per_trimester'
+    unit: 'mm_per_period'
   });
 
 }
@@ -805,6 +875,12 @@ function reduzirAcumuladoPorEstado(
       trimestre_label:
         propriedadesFixas.trimestre_label,
 
+      period_type:
+        propriedadesFixas.period_type,
+
+      duration_months:
+        propriedadesFixas.duration_months,
+
       chart_order:
         propriedadesFixas.chart_order,
 
@@ -823,7 +899,7 @@ function reduzirAcumuladoPorEstado(
 
 var colecoesAcumulado = [];
 
-TRIMESTRES.forEach(function(trimestre) {
+PERIODOS.forEach(function(trimestre) {
 
   var mediaElNino = calcularMediaElNino(
     trimestre
@@ -851,6 +927,8 @@ TRIMESTRES.forEach(function(trimestre) {
         chart_series: '01_elnino_mean',
         trimestre: trimestre.nome,
         trimestre_label: trimestre.label,
+        period_type: trimestre.tipoPeriodo,
+        duration_months: trimestre.duracaoMeses,
         chart_order: trimestre.ordem,
         n_years: trimestre.anosEventos.length
       }
@@ -867,6 +945,8 @@ TRIMESTRES.forEach(function(trimestre) {
         chart_series: '02_elnino_2023_24',
         trimestre: trimestre.nome,
         trimestre_label: trimestre.label,
+        period_type: trimestre.tipoPeriodo,
+        duration_months: trimestre.duracaoMeses,
         chart_order: trimestre.ordem,
         n_years: 1
       }
@@ -883,6 +963,8 @@ TRIMESTRES.forEach(function(trimestre) {
         chart_series: '03_reference_mean',
         trimestre: trimestre.nome,
         trimestre_label: trimestre.label,
+        period_type: trimestre.tipoPeriodo,
+        duration_months: trimestre.duracaoMeses,
         chart_order: trimestre.ordem,
         n_years: anosReferencia.size()
       }
@@ -895,6 +977,16 @@ TRIMESTRES.forEach(function(trimestre) {
 var tabelaAcumulada = ee.FeatureCollection(
   colecoesAcumulado
 ).flatten();
+
+
+// Subconjunto anual Set–Ago, útil para exportações e análises específicas.
+var tabelaAcumuladaAnual = tabelaAcumulada
+  .filter(
+    ee.Filter.eq(
+      'trimestre',
+      'ANUAL'
+    )
+  );
 
 
 // =============================================================================
@@ -918,7 +1010,8 @@ function criarOpcoesGraficoAnomalia(
         {v: 1, f: 'SON'},
         {v: 2, f: 'DJF'},
         {v: 3, f: 'MAM'},
-        {v: 4, f: 'JJA'}
+        {v: 4, f: 'JJA'},
+        {v: 5, f: 'Set–Ago'}
       ],
       textStyle: {
         fontSize: 9
@@ -995,7 +1088,8 @@ function criarOpcoesGraficoAcumulado(
         {v: 1, f: 'SON'},
         {v: 2, f: 'DJF'},
         {v: 3, f: 'MAM'},
-        {v: 4, f: 'JJA'}
+        {v: 4, f: 'JJA'},
+        {v: 5, f: 'Set–Ago'}
       ],
       textStyle: {
         fontSize: 9
@@ -1251,7 +1345,7 @@ function criarSecaoAnomalia() {
   painel.add(
     ui.Label({
       value:
-        'Eixo X: SON → DJF → MAM → JJA | Eixo Y: mm por trimestre | Estados em ordem alfabética pela sigla.',
+        'Eixo X: SON → DJF → MAM → JJA → Set–Ago | Eixo Y: anomalia em mm por período | Estados em ordem alfabética pela sigla.',
       style: {
         fontSize: '10px',
         color: '777777',
@@ -1306,7 +1400,7 @@ function criarSecaoAcumulada() {
 
   painel.add(
     ui.Label({
-      value: '2. Precipitação acumulada trimestral por estado — El Niño × referência',
+      value: '2. Precipitação acumulada por período por estado — El Niño × referência',
       style: {
         fontWeight: 'bold',
         fontSize: '18px',
@@ -1332,7 +1426,7 @@ function criarSecaoAcumulada() {
   painel.add(
     ui.Label({
       value:
-        'Eixo X: SON → DJF → MAM → JJA | Eixo Y: precipitação acumulada em mm por trimestre | Estados em ordem alfabética pela sigla.',
+        'Eixo X: SON → DJF → MAM → JJA → Set–Ago | Eixo Y: precipitação acumulada em mm por período | Estados em ordem alfabética pela sigla.',
       style: {
         fontSize: '10px',
         color: '777777',
@@ -1406,7 +1500,7 @@ painelPrincipal.add(
 painelPrincipal.add(
   ui.Label({
     value:
-      'O painel reúne anomalia de precipitação e precipitação acumulada trimestral, ambas resumidas por estado.',
+      'O painel reúne anomalia de precipitação e precipitação acumulada trimestral e anual Set–Ago, ambas resumidas por estado.',
     style: {
       fontSize: '11px',
       color: '555555',
@@ -1453,7 +1547,7 @@ print(
   precipitacaoMensal.size()
 );
 
-TRIMESTRES.forEach(function(trimestre) {
+PERIODOS.forEach(function(trimestre) {
 
   print(
     'Anos da referência | ' + trimestre.nome,
@@ -1472,6 +1566,36 @@ print(
   tabelaAcumulada
 );
 
+print(
+  'Tabela anual Set–Ago de anomalia por estado',
+  tabelaAnomaliaAnual
+);
+
+print(
+  'Tabela anual Set–Ago de acumulado por estado',
+  tabelaAcumuladaAnual
+);
+
+print(
+  'N de registros da tabela de anomalia — esperado: 540',
+  tabelaAnomalia.size()
+);
+
+print(
+  'N de registros anuais de anomalia — esperado: 108',
+  tabelaAnomaliaAnual.size()
+);
+
+print(
+  'N de registros da tabela acumulada — esperado: 405',
+  tabelaAcumulada.size()
+);
+
+print(
+  'N de registros anuais acumulados — esperado: 81',
+  tabelaAcumuladaAnual.size()
+);
+
 
 // =============================================================================
 // 11. EXPORTAÇÕES
@@ -1483,10 +1607,10 @@ Export.table.toDrive({
     tabelaAnomalia,
 
   description:
-    'mapbAtmosfera_state_anomaly_events_and_mean_barchart_long',
+    'mapbAtmosfera_state_anomaly_events_mean_with_annual_long',
 
   fileNamePrefix:
-    'mapbAtmosfera_state_anomaly_events_and_mean_barchart_long',
+    'mapbAtmosfera_state_anomaly_events_mean_with_annual_long',
 
   fileFormat:
     'CSV',
@@ -1498,6 +1622,8 @@ Export.table.toDrive({
     'estado_regiao',
     'trimestre',
     'trimestre_label',
+    'period_type',
+    'duration_months',
     'chart_order',
     'evento',
     'event_label',
@@ -1516,10 +1642,10 @@ Export.table.toDrive({
     tabelaAcumulada,
 
   description:
-    'mapbAtmosfera_state_accumulated_precip_mean_2023_24_vs_reference',
+    'mapbAtmosfera_state_accumulated_precip_with_annual_mean_2023_24_vs_reference',
 
   fileNamePrefix:
-    'mapbAtmosfera_state_accumulated_precip_mean_2023_24_vs_reference',
+    'mapbAtmosfera_state_accumulated_precip_with_annual_mean_2023_24_vs_reference',
 
   fileFormat:
     'CSV',
@@ -1531,6 +1657,8 @@ Export.table.toDrive({
     'estado_regiao',
     'trimestre',
     'trimestre_label',
+    'period_type',
+    'duration_months',
     'chart_order',
     'grupo',
     'grupo_label',
@@ -1541,3 +1669,86 @@ Export.table.toDrive({
   ]
 
 });
+
+
+// =============================================================================
+// 12. EXPORTAÇÕES ANUAIS SET–AGO SEPARADAS
+// =============================================================================
+
+Export.table.toDrive({
+
+  collection:
+    tabelaAnomaliaAnual,
+
+  description:
+    'mapbAtmosfera_state_anomaly_ANUAL_SetAgo_events_and_mean',
+
+  fileNamePrefix:
+    'mapbAtmosfera_state_anomaly_ANUAL_SetAgo_events_and_mean',
+
+  fileFormat:
+    'CSV',
+
+  selectors: [
+    'estado_sigla',
+    'estado_nome',
+    'estado_codigo',
+    'estado_regiao',
+    'trimestre',
+    'trimestre_label',
+    'period_type',
+    'duration_months',
+    'chart_order',
+    'evento',
+    'event_label',
+    'chart_series',
+    'n_events',
+    'valor_mm',
+    'dataset'
+  ]
+
+});
+
+
+Export.table.toDrive({
+
+  collection:
+    tabelaAcumuladaAnual,
+
+  description:
+    'mapbAtmosfera_state_accumulated_ANUAL_SetAgo_mean_2023_24_vs_reference',
+
+  fileNamePrefix:
+    'mapbAtmosfera_state_accumulated_ANUAL_SetAgo_mean_2023_24_vs_reference',
+
+  fileFormat:
+    'CSV',
+
+  selectors: [
+    'estado_sigla',
+    'estado_nome',
+    'estado_codigo',
+    'estado_regiao',
+    'trimestre',
+    'trimestre_label',
+    'period_type',
+    'duration_months',
+    'chart_order',
+    'grupo',
+    'grupo_label',
+    'chart_series',
+    'n_years',
+    'valor_mm',
+    'dataset'
+  ]
+
+});
+
+
+print(
+  'Período anual incluído: Set–Ago (12 meses, setembro do ano inicial até agosto do ano seguinte).'
+);
+
+print(
+  'Referência anual: períodos iniciados entre 1991 e 2020, excluindo 1997 e 2015.'
+);

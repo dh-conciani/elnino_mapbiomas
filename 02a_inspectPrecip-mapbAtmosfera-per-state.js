@@ -153,37 +153,48 @@ var TRIMESTRES = [
 
 
 // =============================================================================
-// 3. ESTADOS DO BRASIL
+// 3. ESTADOS DO BRASIL — MAPBIOMAS / IBGE 2017
 // =============================================================================
 
+/*
+ * Fonte dos limites estaduais:
+ *
+ * projects/mapbiomas-workspace/AUXILIAR/estados-2017_old
+ *
+ * Campos originais:
+ *   CD_GEOCUF
+ *   NM_ESTADO
+ *   NM_REGIAO
+ */
+
 var ESTADOS_UI = [
-  {nome: 'Acre', sigla: 'AC'},
-  {nome: 'Alagoas', sigla: 'AL'},
-  {nome: 'Amapa', sigla: 'AP'},
-  {nome: 'Amazonas', sigla: 'AM'},
-  {nome: 'Bahia', sigla: 'BA'},
-  {nome: 'Ceara', sigla: 'CE'},
-  {nome: 'Distrito Federal', sigla: 'DF'},
-  {nome: 'Espirito Santo', sigla: 'ES'},
-  {nome: 'Goias', sigla: 'GO'},
-  {nome: 'Maranhao', sigla: 'MA'},
-  {nome: 'Mato Grosso', sigla: 'MT'},
-  {nome: 'Mato Grosso do Sul', sigla: 'MS'},
-  {nome: 'Minas Gerais', sigla: 'MG'},
-  {nome: 'Para', sigla: 'PA'},
-  {nome: 'Paraiba', sigla: 'PB'},
-  {nome: 'Parana', sigla: 'PR'},
-  {nome: 'Pernambuco', sigla: 'PE'},
-  {nome: 'Piaui', sigla: 'PI'},
-  {nome: 'Rio de Janeiro', sigla: 'RJ'},
-  {nome: 'Rio Grande do Norte', sigla: 'RN'},
-  {nome: 'Rio Grande do Sul', sigla: 'RS'},
-  {nome: 'Rondonia', sigla: 'RO'},
-  {nome: 'Roraima', sigla: 'RR'},
-  {nome: 'Santa Catarina', sigla: 'SC'},
-  {nome: 'Sao Paulo', sigla: 'SP'},
-  {nome: 'Sergipe', sigla: 'SE'},
-  {nome: 'Tocantins', sigla: 'TO'}
+  {nome: 'ACRE', sigla: 'AC'},
+  {nome: 'ALAGOAS', sigla: 'AL'},
+  {nome: 'AMAPÁ', sigla: 'AP'},
+  {nome: 'AMAZONAS', sigla: 'AM'},
+  {nome: 'BAHIA', sigla: 'BA'},
+  {nome: 'CEARÁ', sigla: 'CE'},
+  {nome: 'DISTRITO FEDERAL', sigla: 'DF'},
+  {nome: 'ESPÍRITO SANTO', sigla: 'ES'},
+  {nome: 'GOIÁS', sigla: 'GO'},
+  {nome: 'MARANHÃO', sigla: 'MA'},
+  {nome: 'MATO GROSSO', sigla: 'MT'},
+  {nome: 'MATO GROSSO DO SUL', sigla: 'MS'},
+  {nome: 'MINAS GERAIS', sigla: 'MG'},
+  {nome: 'PARÁ', sigla: 'PA'},
+  {nome: 'PARAÍBA', sigla: 'PB'},
+  {nome: 'PARANÁ', sigla: 'PR'},
+  {nome: 'PERNAMBUCO', sigla: 'PE'},
+  {nome: 'PIAUÍ', sigla: 'PI'},
+  {nome: 'RIO DE JANEIRO', sigla: 'RJ'},
+  {nome: 'RIO GRANDE DO NORTE', sigla: 'RN'},
+  {nome: 'RIO GRANDE DO SUL', sigla: 'RS'},
+  {nome: 'RONDÔNIA', sigla: 'RO'},
+  {nome: 'RORAIMA', sigla: 'RR'},
+  {nome: 'SANTA CATARINA', sigla: 'SC'},
+  {nome: 'SÃO PAULO', sigla: 'SP'},
+  {nome: 'SERGIPE', sigla: 'SE'},
+  {nome: 'TOCANTINS', sigla: 'TO'}
 ]
 
 .sort(function(a, b) {
@@ -191,64 +202,74 @@ var ESTADOS_UI = [
 });
 
 
-var SIGLAS_ESTADOS = ee.Dictionary({
-  'Acre': 'AC',
-  'Alagoas': 'AL',
-  'Amapa': 'AP',
-  'Amazonas': 'AM',
-  'Bahia': 'BA',
-  'Ceara': 'CE',
-  'Distrito Federal': 'DF',
-  'Espirito Santo': 'ES',
-  'Goias': 'GO',
-  'Maranhao': 'MA',
-  'Mato Grosso': 'MT',
-  'Mato Grosso do Sul': 'MS',
-  'Minas Gerais': 'MG',
-  'Para': 'PA',
-  'Paraiba': 'PB',
-  'Parana': 'PR',
-  'Pernambuco': 'PE',
-  'Piaui': 'PI',
-  'Rio de Janeiro': 'RJ',
-  'Rio Grande do Norte': 'RN',
-  'Rio Grande do Sul': 'RS',
-  'Rondonia': 'RO',
-  'Roraima': 'RR',
-  'Santa Catarina': 'SC',
-  'Sao Paulo': 'SP',
-  'Sergipe': 'SE',
-  'Tocantins': 'TO'
+/*
+ * Código IBGE da unidade da federação -> sigla.
+ *
+ * Usar o código é mais robusto que usar NM_ESTADO, pois evita diferenças de
+ * capitalização, acentos ou grafia.
+ */
+
+var SIGLAS_POR_CODIGO = ee.Dictionary({
+  '11': 'RO',
+  '12': 'AC',
+  '13': 'AM',
+  '14': 'RR',
+  '15': 'PA',
+  '16': 'AP',
+  '17': 'TO',
+  '21': 'MA',
+  '22': 'PI',
+  '23': 'CE',
+  '24': 'RN',
+  '25': 'PB',
+  '26': 'PE',
+  '27': 'AL',
+  '28': 'SE',
+  '29': 'BA',
+  '31': 'MG',
+  '32': 'ES',
+  '33': 'RJ',
+  '35': 'SP',
+  '41': 'PR',
+  '42': 'SC',
+  '43': 'RS',
+  '50': 'MS',
+  '51': 'MT',
+  '52': 'GO',
+  '53': 'DF'
 });
 
 
 var estados = ee.FeatureCollection(
-  'FAO/GAUL/2015/level1'
-)
-
-.filter(
-  ee.Filter.eq(
-    'ADM0_NAME',
-    'Brazil'
-  )
+  'projects/mapbiomas-workspace/AUXILIAR/estados-2017_old'
 );
 
 
 var estadosComSigla = estados.map(function(feature) {
 
+  var codigo = ee.String(
+    feature.get('CD_GEOCUF')
+  );
+
   var nome = ee.String(
-    feature.get('ADM1_NAME')
+    feature.get('NM_ESTADO')
+  );
+
+  var regiao = ee.String(
+    feature.get('NM_REGIAO')
   );
 
   var sigla = ee.String(
-    SIGLAS_ESTADOS.get(
-      nome,
-      nome
+    SIGLAS_POR_CODIGO.get(
+      codigo
     )
   );
 
+
   return feature.set({
+    estado_codigo: codigo,
     estado_nome: nome,
+    estado_regiao: regiao,
     estado_sigla: sigla
   });
 
@@ -316,6 +337,12 @@ function reduzirAnomaliaPorEstado(
 
       estado_nome:
         feature.get('estado_nome'),
+
+      estado_codigo:
+        feature.get('estado_codigo'),
+
+      estado_regiao:
+        feature.get('estado_regiao'),
 
       valor_mm:
         feature.get('mean'),
@@ -753,6 +780,12 @@ function reduzirAcumuladoPorEstado(
 
       estado_nome:
         feature.get('estado_nome'),
+
+      estado_codigo:
+        feature.get('estado_codigo'),
+
+      estado_regiao:
+        feature.get('estado_regiao'),
 
       valor_mm:
         feature.get('mean'),
@@ -1401,6 +1434,16 @@ ui.root.add(painelPrincipal);
 // =============================================================================
 
 print(
+  'Estados MapBiomas/IBGE 2017 — esperado: 27 feições',
+  estadosComSigla.size()
+);
+
+print(
+  'Amostra dos estados com código, sigla, nome e região',
+  estadosComSigla.limit(5)
+);
+
+print(
   'Tabela de anomalia por estado',
   tabelaAnomalia
 );
@@ -1451,6 +1494,8 @@ Export.table.toDrive({
   selectors: [
     'estado_sigla',
     'estado_nome',
+    'estado_codigo',
+    'estado_regiao',
     'trimestre',
     'trimestre_label',
     'chart_order',
@@ -1482,6 +1527,8 @@ Export.table.toDrive({
   selectors: [
     'estado_sigla',
     'estado_nome',
+    'estado_codigo',
+    'estado_regiao',
     'trimestre',
     'trimestre_label',
     'chart_order',

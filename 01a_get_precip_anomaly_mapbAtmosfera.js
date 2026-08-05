@@ -1682,26 +1682,28 @@ NOMES_PERIODOS.forEach(
 var VIS_ANOMALIA = {
 
   min:
-    -300,
+    -500,
 
   max:
-    300,
+    500,
 
   palette: [
 
+    '67001f',
     '8b0000',
     'b2182b',
     'd6604d',
     'f4a582',
-    'fddbc7',
 
+    'fddbc7',
     'ffffff',
 
     'd1e5f0',
     '92c5de',
     '4393c3',
     '2166ac',
-    '053061'
+    '053061',
+    '02213d'
 
   ]
 
@@ -2385,15 +2387,18 @@ function criarLegendaAnomalia() {
 
   var cores = [
 
+    '67001f',
     '8b0000',
+    'b2182b',
     'd6604d',
     'f4a582',
-    'fddbc7',
 
     'ffffff',
 
     'd1e5f0',
+    '92c5de',
     '4393c3',
+    '2166ac',
     '053061'
 
   ];
@@ -2401,16 +2406,19 @@ function criarLegendaAnomalia() {
 
   var textos = [
 
-    '≤ −300 mm',
+    '≤ −500 mm',
+    '−500 a −400 mm',
+    '−400 a −300 mm',
     '−300 a −200 mm',
     '−200 a −100 mm',
-    '−100 a 0 mm',
 
-    '≈ 0 mm',
+    '−100 a +100 mm',
 
-    '0 a 100 mm',
-    '100 a 200 mm',
-    '≥ 300 mm'
+    '+100 a +200 mm',
+    '+200 a +300 mm',
+    '+300 a +400 mm',
+    '+400 a +500 mm',
+    '≥ +500 mm'
 
   ];
 

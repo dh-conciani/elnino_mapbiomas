@@ -1,56 +1,33 @@
 // =============================================================================
 // MAPBIOMAS COLLECTION 11
-// AREA BY BIOME, LULC CLASS AND MAPBIOMAS ATMOSPHERE
+// AREA BY BRAZILIAN STATE, LULC CLASS AND MAPBIOMAS ATMOSPHERE
 // PRECIPITATION-ANOMALY PRODUCT
 //
-// INPUT PRODUCTS CREATED BY THE SECOND SCRIPT:
+// This script reproduces the biome export logic at state level.
+// One CSV task is created for every:
 //
-//   1. El Niño 1997/98
-//      mapbAtmosfera_precip_anomaly_elnino_1997_98_<PERIOD>
-//      LULC = 1997
+//   anomaly product × enabled period × state
 //
-//   2. El Niño 2015/16
-//      mapbAtmosfera_precip_anomaly_elnino_2015_16_<PERIOD>
-//      LULC = 2015
+// Default configuration:
+//   4 products × 1 period (SON) × 27 states = 108 tasks
 //
-//   3. El Niño 2023/24
-//      mapbAtmosfera_precip_anomaly_elnino_2023_24_<PERIOD>
-//      LULC = 2023
-//
-//   4. Mean anomaly of the three El Niño events
-//      mapbAtmosfera_precip_anomaly_mean_3elnino_<PERIOD>
-//      LULC = 2025
-//
-// ONLY THE FOUR TRIMESTERS ARE PROCESSED:
-//
-//   SON | DJF | MAM | JJA
-//
-// THE ANNUAL SEPTEMBER-AUGUST PRODUCT IS NOT USED.
+// If all four periods are enabled:
+//   4 products × 4 periods × 27 states = 432 tasks
 //
 // OUTPUT COLUMNS:
-//
 //   classification_year
 //   event_year_pair
 //   anomaly_product
 //   event_label
 //   period
-//   biome
-//   biome_name
-//   biome_region_key
-//   source_biome_id
+//   state_code
+//   state_abbrev
+//   state_name
+//   macroregion
 //   class
 //   precip_anomaly_mm
 //   anomaly_bin_mm
 //   area_ha
-//
-// ADJUSTED BIOME CODES:
-//
-//   41 = Mata Atlântica (Sul): intersection of biome 4 with RS, SC, PR, SP and RJ
-//   42 = Mata Atlântica (Norte): remaining pixels of biome 4
-//
-// NUMBER OF TASKS WITH ALL FOUR TRIMESTERS ENABLED:
-//
-//   4 products × 4 trimesters × 7 adjusted biomes = 112 export tasks
 // =============================================================================
 
 
@@ -59,106 +36,27 @@
 // =============================================================================
 
 var PERIODS = [
-  'SON',
-  //'DJF',
-  //'MAM',
-  //'JJA'
+  'SON'
+  // 'DJF',
+  // 'MAM',
+  // 'JJA'
 ];
 
 
 /*
- * Original biome ID for Mata Atlântica in the biome raster.
- */
-var MATA_ATLANTICA_ID = 4;
-
-
-/*
- * State identifiers from projects/mapbiomas-workspace/AUXILIAR/estados-2017_old.
- * CD_GEOCUF is stored as a String in that asset.
+ * Optional state subset.
  *
- *   33 = Rio de Janeiro
- *   35 = São Paulo
- *   41 = Paraná
- *   42 = Santa Catarina
- *   43 = Rio Grande do Sul
+ * Use null to export all 27 states.
+ * Examples:
+ *   ['35']             -> São Paulo only
+ *   ['33', '35']       -> Rio de Janeiro and São Paulo
+ *   ['41', '42', '43'] -> Paraná, Santa Catarina and Rio Grande do Sul
  */
-var SOUTH_STATE_CODES = [
-  '33',
-  '35',
-  '41',
-  '42',
-  '43'
-];
-
-
-var SOUTH_STATE_NAMES = [
-  'RIO DE JANEIRO',
-  'SÃO PAULO',
-  'PARANÁ',
-  'SANTA CATARINA',
-  'RIO GRANDE DO SUL'
-];
-
-
-/*
- * The original six biomes become seven adjusted processing regions.
- * Codes 41 and 42 replace original Mata Atlântica code 4 only in outputs.
- */
-var BIOME_REGIONS = [
-  {
-    key: 'amazonia',
-    outputBiomeId: 1,
-    sourceBiomeId: 1,
-    label: 'Amazônia'
-  },
-  {
-    key: 'caatinga',
-    outputBiomeId: 2,
-    sourceBiomeId: 2,
-    label: 'Caatinga'
-  },
-  {
-    key: 'cerrado',
-    outputBiomeId: 3,
-    sourceBiomeId: 3,
-    label: 'Cerrado'
-  },
-  {
-    key: 'mata_atlantica_sul',
-    outputBiomeId: 41,
-    sourceBiomeId: MATA_ATLANTICA_ID,
-    label: 'Mata Atlântica (Sul)'
-  },
-  {
-    key: 'mata_atlantica_norte',
-    outputBiomeId: 42,
-    sourceBiomeId: MATA_ATLANTICA_ID,
-    label: 'Mata Atlântica (Norte)'
-  },
-  {
-    key: 'pampa',
-    outputBiomeId: 5,
-    sourceBiomeId: 5,
-    label: 'Pampa'
-  },
-  {
-    key: 'pantanal',
-    outputBiomeId: 6,
-    sourceBiomeId: 6,
-    label: 'Pantanal'
-  }
-];
+var STATE_CODES_TO_EXPORT = null;
 
 
 /*
  * Precipitation-anomaly grouping interval in millimetres.
- *
- * Example with ANOMALY_BIN_MM = 10:
- *
- *   -137 mm -> -140 mm
- *   -133 mm -> -130 mm
- *    +46 mm ->  +50 mm
- *
  * Set to 1 to preserve integer-millimetre classes.
  */
 var ANOMALY_BIN_MM = 10;
@@ -171,19 +69,17 @@ var TILE_SCALE = 8;
 
 
 /*
- * The reduction is performed on the 30 m MapBiomas grid.
- * The coarser precipitation anomaly is treated as a categorical anomaly-bin
- * raster and therefore uses nearest-neighbour reprojection by default.
+ * Reduction resolution: MapBiomas 30 m grid.
  */
 var SCALE = 30;
 
 
 var DRIVE_FOLDER =
-  'Collection11-ElNino-MapbAtmosfera';
+  'Collection11-ElNino-MapbAtmosfera-State';
 
 
 var OUTPUT_PREFIX =
-  'c11-atm-anom-biome-class';
+  'c11-atm-anom-state-class';
 
 
 // =============================================================================
@@ -204,15 +100,9 @@ var PRECIP_DIR =
   'DEGRADATION/COLLECTION-10/ELNINO';
 
 
-var BIOMES_ASSET =
-  'projects/mapbiomas-workspace/' +
-  'AUXILIAR/biome_2025_buf5k_30m';
-
-
 /*
- * MapBiomas/IBGE state boundaries. Relevant attributes:
- *
- *   CD_GEOCUF — state code stored as String
+ * Relevant attributes:
+ *   CD_GEOCUF — IBGE state code stored as String
  *   NM_ESTADO — state name
  *   NM_REGIAO — Brazilian macroregion
  */
@@ -221,126 +111,106 @@ var STATES_ASSET =
 
 
 // =============================================================================
-// 3. PRECIPITATION-ANOMALY PRODUCTS
+// 3. STATE CONFIGURATION
 // =============================================================================
 
 /*
- * The event assets exported by the second script contain the band:
- *
- *   anomalia_mm
- *
- * The mean assets contain the band:
- *
- *   media_anomalias_mm
- *
- * loadAnomaly() selects band 0, so both product types are handled by the same
- * function without depending on their original band names.
+ * Static names and abbreviations are used in output filenames and columns.
+ * State boundaries themselves always come from STATES_ASSET, selected by
+ * CD_GEOCUF.
  */
+var STATE_REGIONS = [
+  {code: '11', abbrev: 'RO', name: 'Rondônia',             macroregion: 'Norte'},
+  {code: '12', abbrev: 'AC', name: 'Acre',                 macroregion: 'Norte'},
+  {code: '13', abbrev: 'AM', name: 'Amazonas',             macroregion: 'Norte'},
+  {code: '14', abbrev: 'RR', name: 'Roraima',              macroregion: 'Norte'},
+  {code: '15', abbrev: 'PA', name: 'Pará',                 macroregion: 'Norte'},
+  {code: '16', abbrev: 'AP', name: 'Amapá',                macroregion: 'Norte'},
+  {code: '17', abbrev: 'TO', name: 'Tocantins',            macroregion: 'Norte'},
+
+  {code: '21', abbrev: 'MA', name: 'Maranhão',             macroregion: 'Nordeste'},
+  {code: '22', abbrev: 'PI', name: 'Piauí',                macroregion: 'Nordeste'},
+  {code: '23', abbrev: 'CE', name: 'Ceará',                macroregion: 'Nordeste'},
+  {code: '24', abbrev: 'RN', name: 'Rio Grande do Norte',  macroregion: 'Nordeste'},
+  {code: '25', abbrev: 'PB', name: 'Paraíba',              macroregion: 'Nordeste'},
+  {code: '26', abbrev: 'PE', name: 'Pernambuco',           macroregion: 'Nordeste'},
+  {code: '27', abbrev: 'AL', name: 'Alagoas',              macroregion: 'Nordeste'},
+  {code: '28', abbrev: 'SE', name: 'Sergipe',              macroregion: 'Nordeste'},
+  {code: '29', abbrev: 'BA', name: 'Bahia',                macroregion: 'Nordeste'},
+
+  {code: '31', abbrev: 'MG', name: 'Minas Gerais',         macroregion: 'Sudeste'},
+  {code: '32', abbrev: 'ES', name: 'Espírito Santo',       macroregion: 'Sudeste'},
+  {code: '33', abbrev: 'RJ', name: 'Rio de Janeiro',       macroregion: 'Sudeste'},
+  {code: '35', abbrev: 'SP', name: 'São Paulo',            macroregion: 'Sudeste'},
+
+  {code: '41', abbrev: 'PR', name: 'Paraná',               macroregion: 'Sul'},
+  {code: '42', abbrev: 'SC', name: 'Santa Catarina',       macroregion: 'Sul'},
+  {code: '43', abbrev: 'RS', name: 'Rio Grande do Sul',    macroregion: 'Sul'},
+
+  {code: '50', abbrev: 'MS', name: 'Mato Grosso do Sul',   macroregion: 'Centro-Oeste'},
+  {code: '51', abbrev: 'MT', name: 'Mato Grosso',          macroregion: 'Centro-Oeste'},
+  {code: '52', abbrev: 'GO', name: 'Goiás',                macroregion: 'Centro-Oeste'},
+  {code: '53', abbrev: 'DF', name: 'Distrito Federal',     macroregion: 'Centro-Oeste'}
+];
+
+
+if (STATE_CODES_TO_EXPORT !== null) {
+  STATE_REGIONS = STATE_REGIONS.filter(
+    function(stateRegion) {
+      return STATE_CODES_TO_EXPORT.indexOf(stateRegion.code) >= 0;
+    }
+  );
+}
+
+
+// =============================================================================
+// 4. PRECIPITATION-ANOMALY PRODUCTS
+// =============================================================================
+
 var ANOMALY_PRODUCTS = [
-
   {
-    key:
-      'elnino_1997_98',
-
-    eventYearPair:
-      '1997/98',
-
-    eventLabel:
-      'El Niño 1997/98',
-
-    classificationYear:
-      1997,
-
-    assetPrefix:
-      'mapbAtmosfera_precip_anomaly_elnino_1997_98_'
+    key: 'elnino_1997_98',
+    eventYearPair: '1997/98',
+    eventLabel: 'El Niño 1997/98',
+    classificationYear: 1997,
+    assetPrefix: 'mapbAtmosfera_precip_anomaly_elnino_1997_98_'
   },
-
-
   {
-    key:
-      'elnino_2015_16',
-
-    eventYearPair:
-      '2015/16',
-
-    eventLabel:
-      'El Niño 2015/16',
-
-    classificationYear:
-      2015,
-
-    assetPrefix:
-      'mapbAtmosfera_precip_anomaly_elnino_2015_16_'
+    key: 'elnino_2015_16',
+    eventYearPair: '2015/16',
+    eventLabel: 'El Niño 2015/16',
+    classificationYear: 2015,
+    assetPrefix: 'mapbAtmosfera_precip_anomaly_elnino_2015_16_'
   },
-
-
   {
-    key:
-      'elnino_2023_24',
-
-    eventYearPair:
-      '2023/24',
-
-    eventLabel:
-      'El Niño 2023/24',
-
-    classificationYear:
-      2023,
-
-    assetPrefix:
-      'mapbAtmosfera_precip_anomaly_elnino_2023_24_'
+    key: 'elnino_2023_24',
+    eventYearPair: '2023/24',
+    eventLabel: 'El Niño 2023/24',
+    classificationYear: 2023,
+    assetPrefix: 'mapbAtmosfera_precip_anomaly_elnino_2023_24_'
   },
-
-
   {
-    key:
-      'mean_3_events',
-
-    eventYearPair:
-      '1997/98 + 2015/16 + 2023/24',
-
-    eventLabel:
-      'Média de 1997/98, 2015/16 e 2023/24',
-
-    classificationYear:
-      2025,
-
-    assetPrefix:
-      'mapbAtmosfera_precip_anomaly_mean_3elnino_'
+    key: 'mean_3_events',
+    eventYearPair: '1997/98 + 2015/16 + 2023/24',
+    eventLabel: 'Média de 1997/98, 2015/16 e 2023/24',
+    classificationYear: 2025,
+    assetPrefix: 'mapbAtmosfera_precip_anomaly_mean_3elnino_'
   }
-
 ];
 
 
 // =============================================================================
-// 4. PROCESSING REGION
+// 5. DATA SOURCES AND CACHES
 // =============================================================================
 
-/*
- * A rectangular region avoids reducing over a complex national geometry.
- * Final pixels are still restricted by the intersection of:
- *
- *   1. the MapBiomas classification mask;
- *   2. the precipitation-anomaly mask;
- *   3. the selected biome mask.
- */
-var BRAZIL_BBOX = ee.Geometry.Rectangle(
-  [
-    -74.5,
-    -34.5,
-    -33.5,
-    6.0
-  ],
-  null,
-  false
-);
+var brazilStates =
+  ee.FeatureCollection(STATES_ASSET);
 
-
-// =============================================================================
-// 5. MAPBIOMAS CLASSIFICATION CACHE
-// =============================================================================
 
 var CLASSIFICATION_CACHE = {};
+var STATE_FEATURE_CACHE = {};
+var STATE_MASK_CACHE = {};
+var STATE_BOUNDS_CACHE = {};
 
 
 // =============================================================================
@@ -348,11 +218,9 @@ var CLASSIFICATION_CACHE = {};
 // =============================================================================
 
 function loadClassification(classificationYear) {
-
   var cacheKey = String(classificationYear);
 
   if (!CLASSIFICATION_CACHE[cacheKey]) {
-
     var bandName =
       'classification_' + classificationYear;
 
@@ -370,247 +238,20 @@ function loadClassification(classificationYear) {
         .toInt16()
         .selfMask()
         .set({
-          classification_year:
-            classificationYear,
-
-          mapbiomas_version:
-            MAPBIOMAS_VERSION
+          classification_year: classificationYear,
+          mapbiomas_version: MAPBIOMAS_VERSION
         });
   }
 
-  return ee.Image(
-    CLASSIFICATION_CACHE[cacheKey]
-  );
+  return ee.Image(CLASSIFICATION_CACHE[cacheKey]);
 }
 
 
 // =============================================================================
-// 7. PRELOAD AND CHECK CLASSIFICATIONS
-// =============================================================================
-
-var CLASSIFICATION_YEARS = [
-  1997,
-  2015,
-  2023,
-  2025
-];
-
-
-CLASSIFICATION_YEARS.forEach(
-  function(year) {
-
-    var classification =
-      loadClassification(year);
-
-    print(
-      'MapBiomas classification ' + year + ':',
-      classification
-    );
-
-    print(
-      'Projection — classification ' + year + ':',
-      classification.projection()
-    );
-  }
-);
-
-
-// =============================================================================
-// 8. BIOMES AND STATE-BASED MATA ATLÂNTICA SUBDIVISION
-// =============================================================================
-
-var biomes =
-  ee.Image(BIOMES_ASSET)
-    .rename('biome')
-    .toInt16()
-    .selfMask();
-
-
-var brazilStates =
-  ee.FeatureCollection(STATES_ASSET);
-
-
-/*
- * Select exactly RJ, SP, PR, SC and RS by their stable state codes.
- * Using CD_GEOCUF avoids differences in spelling, accents or capitalization.
- */
-var southStates =
-  brazilStates.filter(
-    ee.Filter.inList(
-      'CD_GEOCUF',
-      SOUTH_STATE_CODES
-    )
-  );
-
-
-/*
- * Rasterize the five selected states as 1 and all other pixels as 0.
- */
-var southStatesMask =
-  ee.Image(0)
-    .byte()
-    .paint(
-      southStates,
-      1
-    )
-    .unmask(0)
-    .rename('south_states');
-
-
-/*
- * AUTHORITATIVE MATA ATLÂNTICA REFERENCE:
- * only pixels equal to biome code 4 in BIOMES_ASSET are eligible for either
- * subdivision. selfMask() removes every other biome from the mask domain.
- */
-var mataAtlanticaReferenceMask =
-  biomes
-    .eq(MATA_ATLANTICA_ID)
-    .selfMask()
-    .rename('mata_atlantica_reference');
-
-
-/*
- * Sul = original Mata Atlântica reference intersected with
- * RS, SC, PR, SP and RJ.
- */
-var mataAtlanticaSouthMask =
-  mataAtlanticaReferenceMask
-    .updateMask(
-      southStatesMask.eq(1)
-    )
-    .selfMask()
-    .rename('mata_atlantica_sul');
-
-
-/*
- * Norte = original Mata Atlântica reference outside those five states.
- * Because the starting image is mataAtlanticaReferenceMask, this operation
- * cannot include Caatinga, Cerrado or any other biome.
- */
-var mataAtlanticaNorthMask =
-  mataAtlanticaReferenceMask
-    .updateMask(
-      southStatesMask.eq(0)
-    )
-    .selfMask()
-    .rename('mata_atlantica_norte');
-
-
-/*
- * Recombine both subdivisions for validation against the original reference.
- */
-var mataAtlanticaRecombinedMask =
-  mataAtlanticaSouthMask
-    .unmask(0)
-    .or(
-      mataAtlanticaNorthMask.unmask(0)
-    )
-    .selfMask()
-    .rename('mata_atlantica_recombined');
-
-
-/*
- * This mismatch layer should be empty. Any visible pixel indicates either a
- * gap or an overlap relative to the original Mata Atlântica reference.
- */
-var mataAtlanticaSplitMismatch =
-  mataAtlanticaReferenceMask
-    .unmask(0)
-    .neq(
-      mataAtlanticaRecombinedMask.unmask(0)
-    )
-    .selfMask()
-    .rename('mata_atlantica_split_mismatch');
-
-
-/*
- * Adjusted biome raster used for checking and visualization.
- * Only original code 4 is replaced by 41 (Sul) or 42 (Norte).
- */
-var adjustedBiomes =
-  biomes
-    .where(
-      mataAtlanticaSouthMask.unmask(0).eq(1),
-      41
-    )
-    .where(
-      mataAtlanticaNorthMask.unmask(0).eq(1),
-      42
-    )
-    .rename('adjusted_biome')
-    .toInt16();
-
-
-function getBiomeRegionMask(biomeRegion) {
-
-  if (biomeRegion.key === 'mata_atlantica_sul') {
-    return mataAtlanticaSouthMask;
-  }
-
-  if (biomeRegion.key === 'mata_atlantica_norte') {
-    return mataAtlanticaNorthMask;
-  }
-
-  return biomes.eq(
-    biomeRegion.sourceBiomeId
-  );
-}
-
-
-print(
-  'Original biomes:',
-  biomes
-);
-
-
-print(
-  'Selected southern states — names:',
-  southStates.aggregate_array('NM_ESTADO')
-);
-
-
-print(
-  'Selected southern states — CD_GEOCUF:',
-  southStates.aggregate_array('CD_GEOCUF')
-);
-
-
-print(
-  'Number of selected southern states (expected 5):',
-  southStates.size()
-);
-
-
-print(
-  'Mata Atlântica source biome ID (expected 4):',
-  MATA_ATLANTICA_ID
-);
-
-
-print(
-  'Mata Atlântica reference mask:',
-  mataAtlanticaReferenceMask
-);
-
-
-print(
-  'Mata Atlântica split mismatch (should be empty):',
-  mataAtlanticaSplitMismatch
-);
-
-
-print(
-  'Adjusted biomes:',
-  adjustedBiomes
-);
-
-
-// =============================================================================
-// 9. LOAD PRECIPITATION ANOMALY
+// 7. LOAD PRECIPITATION ANOMALY
 // =============================================================================
 
 function loadAnomaly(product, period) {
-
   var assetId =
     PRECIP_DIR +
     '/' +
@@ -618,8 +259,6 @@ function loadAnomaly(product, period) {
     period;
 
   return ee.Image(assetId)
-    // Event assets use anomalia_mm; mean assets use media_anomalias_mm.
-    // Both contain one relevant band, so select it by position.
     .select([0])
     .divide(ANOMALY_BIN_MM)
     .round()
@@ -627,32 +266,77 @@ function loadAnomaly(product, period) {
     .rename('precip_anomaly_mm')
     .toInt32()
     .set({
-      anomaly_product:
-        product.key,
-
-      event_year_pair:
-        product.eventYearPair,
-
-      event_label:
-        product.eventLabel,
-
-      period:
-        period,
-
-      classification_year:
-        product.classificationYear,
-
-      anomaly_asset:
-        assetId,
-
-      anomaly_bin_mm:
-        ANOMALY_BIN_MM
+      anomaly_product: product.key,
+      event_year_pair: product.eventYearPair,
+      event_label: product.eventLabel,
+      period: period,
+      classification_year: product.classificationYear,
+      anomaly_asset: assetId,
+      anomaly_bin_mm: ANOMALY_BIN_MM
     });
 }
 
 
 // =============================================================================
-// 10. PIXEL AREA
+// 8. STATE FEATURE, MASK AND BOUNDS
+// =============================================================================
+
+function getStateFeature(stateRegion) {
+  var cacheKey = stateRegion.code;
+
+  if (!STATE_FEATURE_CACHE[cacheKey]) {
+    STATE_FEATURE_CACHE[cacheKey] =
+      ee.Feature(
+        brazilStates
+          .filter(
+            ee.Filter.eq(
+              'CD_GEOCUF',
+              stateRegion.code
+            )
+          )
+          .first()
+      );
+  }
+
+  return ee.Feature(STATE_FEATURE_CACHE[cacheKey]);
+}
+
+
+function getStateMask(stateRegion) {
+  var cacheKey = stateRegion.code;
+
+  if (!STATE_MASK_CACHE[cacheKey]) {
+    var stateFeature =
+      getStateFeature(stateRegion);
+
+    STATE_MASK_CACHE[cacheKey] =
+      ee.Image.constant(1)
+        .byte()
+        .clip(stateFeature.geometry())
+        .selfMask()
+        .rename('state_mask');
+  }
+
+  return ee.Image(STATE_MASK_CACHE[cacheKey]);
+}
+
+
+function getStateBounds(stateRegion) {
+  var cacheKey = stateRegion.code;
+
+  if (!STATE_BOUNDS_CACHE[cacheKey]) {
+    STATE_BOUNDS_CACHE[cacheKey] =
+      getStateFeature(stateRegion)
+        .geometry()
+        .bounds(1);
+  }
+
+  return ee.Geometry(STATE_BOUNDS_CACHE[cacheKey]);
+}
+
+
+// =============================================================================
+// 9. PIXEL AREA
 // =============================================================================
 
 var pixelAreaHa =
@@ -662,84 +346,52 @@ var pixelAreaHa =
 
 
 // =============================================================================
-// 11. INTERNAL CLASS + ANOMALY ENCODING
+// 10. INTERNAL CLASS + ANOMALY ENCODING
 // =============================================================================
 
 /*
- * Biome is not encoded because each export task processes one biome only.
- *
- *   group_id = class × GROUP_STRIDE + anomaly + ANOMALY_OFFSET
- *
- * The values are decoded before CSV export. This creates one grouping level
- * instead of nested class -> anomaly groups.
+ * group_id = class × GROUP_STRIDE + anomaly + ANOMALY_OFFSET
  */
 var ANOMALY_OFFSET = 100000;
 var GROUP_STRIDE = 200001;
 
 
 // =============================================================================
-// 12. CALCULATE ONE PRODUCT × TRIMESTER × BIOME
+// 11. CALCULATE ONE PRODUCT × PERIOD × STATE
 // =============================================================================
 
-function calculateProductPeriodBiome(
+function calculateProductPeriodState(
   product,
   period,
-  biomeRegion
+  stateRegion
 ) {
-
-  var outputBiomeId =
-    ee.Number(
-      biomeRegion.outputBiomeId
-    );
-
-
-  var sourceBiomeId =
-    ee.Number(
-      biomeRegion.sourceBiomeId
-    );
-
-
-  // Product-specific MapBiomas classification.
   var classification =
-    loadClassification(
-      product.classificationYear
-    );
+    loadClassification(product.classificationYear);
 
-
-  // Product-specific precipitation anomaly.
   var anomaly =
-    loadAnomaly(
-      product,
-      period
-    );
+    loadAnomaly(product, period);
 
+  var stateMask =
+    getStateMask(stateRegion);
 
-  // Selected original or adjusted biome region.
-  var biomeMask =
-    getBiomeRegionMask(
-      biomeRegion
-    );
+  var stateBounds =
+    getStateBounds(stateRegion);
 
-
-  // Include only pixels valid in classification, anomaly and selected biome.
   var validMask =
     classification
       .mask()
       .and(anomaly.mask())
-      .and(biomeMask);
-
+      .and(stateMask.unmask(0).eq(1));
 
   var classImage =
     classification
       .updateMask(validMask)
       .toInt32();
 
-
   var anomalyImage =
     anomaly
       .updateMask(validMask)
       .toInt32();
-
 
   var groupId =
     classImage
@@ -749,18 +401,10 @@ function calculateProductPeriodBiome(
       .rename('group_id')
       .toInt32();
 
-
-  /*
-   * Reduction-image bands:
-   *
-   *   band 0 = area_ha
-   *   band 1 = group_id
-   */
   var reductionImage =
     pixelAreaHa
       .updateMask(validMask)
       .addBands(groupId);
-
 
   var result =
     reductionImage.reduceRegion({
@@ -768,31 +412,19 @@ function calculateProductPeriodBiome(
         ee.Reducer
           .sum()
           .group({
-            groupField:
-              1,
-
-            groupName:
-              'group_id'
+            groupField: 1,
+            groupName: 'group_id'
           }),
 
-      geometry:
-        BRAZIL_BBOX,
-
-      scale:
-        SCALE,
-
-      crs:
-        classification.projection(),
-
-      maxPixels:
-        1e13,
-
-      tileScale:
-        TILE_SCALE
+      // The raster mask preserves the exact state boundary. The rectangular
+      // bounds reduce geometry complexity and usually improve stability.
+      geometry: stateBounds,
+      scale: SCALE,
+      crs: classification.projection(),
+      maxPixels: 1e13,
+      tileScale: TILE_SCALE
     });
 
-
-  // Empty-result protection.
   var groups =
     ee.List(
       ee.Dictionary(result)
@@ -802,10 +434,8 @@ function calculateProductPeriodBiome(
         )
     );
 
-
   var rows = groups.map(
     function(groupItem) {
-
       groupItem =
         ee.Dictionary(groupItem);
 
@@ -814,144 +444,82 @@ function calculateProductPeriodBiome(
           groupItem.get('group_id')
         );
 
-
       var classId =
         encoded
           .divide(GROUP_STRIDE)
           .floor();
-
 
       var precipAnomaly =
         encoded
           .mod(GROUP_STRIDE)
           .subtract(ANOMALY_OFFSET);
 
-
       return ee.Feature(
         null,
         {
-          classification_year:
-            product.classificationYear,
-
-          event_year_pair:
-            product.eventYearPair,
-
-          anomaly_product:
-            product.key,
-
-          event_label:
-            product.eventLabel,
-
-          period:
-            period,
-
-          biome:
-            outputBiomeId,
-
-          biome_name:
-            biomeRegion.label,
-
-          biome_region_key:
-            biomeRegion.key,
-
-          source_biome_id:
-            sourceBiomeId,
-
-          class:
-            classId,
-
-          precip_anomaly_mm:
-            precipAnomaly,
-
-          anomaly_bin_mm:
-            ANOMALY_BIN_MM,
-
-          area_ha:
-            groupItem.get('sum')
+          classification_year: product.classificationYear,
+          event_year_pair: product.eventYearPair,
+          anomaly_product: product.key,
+          event_label: product.eventLabel,
+          period: period,
+          state_code: stateRegion.code,
+          state_abbrev: stateRegion.abbrev,
+          state_name: stateRegion.name,
+          macroregion: stateRegion.macroregion,
+          class: classId,
+          precip_anomaly_mm: precipAnomaly,
+          anomaly_bin_mm: ANOMALY_BIN_MM,
+          area_ha: groupItem.get('sum')
         }
       );
     }
   );
-
 
   return ee.FeatureCollection(rows);
 }
 
 
 // =============================================================================
-// 13. EXPORTS
+// 12. EXPORTS
 // =============================================================================
 
-/*
- * One CSV task is created for every:
- *
- *   anomaly product × trimester × adjusted biome region
- *
- * Total with all four trimesters enabled:
- *
- *   4 × 4 × 7 = 112 tasks
- *
- * No ANUAL / September-August task is created.
- */
 ANOMALY_PRODUCTS.forEach(
   function(product) {
-
     PERIODS.forEach(
       function(period) {
-
-        BIOME_REGIONS.forEach(
-          function(biomeRegion) {
-
-            // Keep the task name compact. Earth Engine task names must use
-            // only letters, numbers, hyphens and underscores, with no spaces.
+        STATE_REGIONS.forEach(
+          function(stateRegion) {
             var outputName =
               OUTPUT_PREFIX +
-              '-' +
-              product.key +
-              '-y' +
-              product.classificationYear +
-              '-' +
-              period +
-              '-b' +
-              biomeRegion.outputBiomeId +
-              '-' +
-              biomeRegion.key;
-
+              '-' + product.key +
+              '-y' + product.classificationYear +
+              '-' + period +
+              '-s' + stateRegion.code +
+              '-' + stateRegion.abbrev;
 
             var areas =
-              calculateProductPeriodBiome(
+              calculateProductPeriodState(
                 product,
                 period,
-                biomeRegion
+                stateRegion
               );
 
-
             Export.table.toDrive({
-              collection:
-                areas,
-
-              description:
-                outputName,
-
-              folder:
-                DRIVE_FOLDER,
-
-              fileNamePrefix:
-                outputName,
-
-              fileFormat:
-                'CSV',
-
+              collection: areas,
+              description: outputName,
+              folder: DRIVE_FOLDER,
+              fileNamePrefix: outputName,
+              fileFormat: 'CSV',
               selectors: [
                 'classification_year',
                 'event_year_pair',
                 'anomaly_product',
                 'event_label',
                 'period',
-                'biome',
-                'biome_name',
-                'biome_region_key',
-                'source_biome_id',
+                'state_code',
+                'state_abbrev',
+                'state_name',
+                'macroregion',
                 'class',
                 'precip_anomaly_mm',
                 'anomaly_bin_mm',
@@ -959,22 +527,14 @@ ANOMALY_PRODUCTS.forEach(
               ]
             });
 
-
             print(
               'Configured:',
               outputName,
-              '| event:',
-              product.eventYearPair,
-              '| LULC:',
-              product.classificationYear,
-              '| period:',
-              period,
-              '| biome:',
-              biomeRegion.outputBiomeId,
-              '| biome name:',
-              biomeRegion.label,
-              '| source biome:',
-              biomeRegion.sourceBiomeId
+              '| event:', product.eventYearPair,
+              '| LULC:', product.classificationYear,
+              '| period:', period,
+              '| state:', stateRegion.abbrev,
+              '| state code:', stateRegion.code
             );
           }
         );
@@ -985,63 +545,45 @@ ANOMALY_PRODUCTS.forEach(
 
 
 // =============================================================================
-// 14. OPTIONAL SINGLE-TASK TEST
+// 13. OPTIONAL SINGLE-TASK TEST
 // =============================================================================
 
 /*
- * Recommended: comment out Section 13 and run this single test first.
- *
- * Product indices:
- *
- *   0 = El Niño 1997/98 — LULC 1997
- *   1 = El Niño 2015/16 — LULC 2015
- *   2 = El Niño 2023/24 — LULC 2023
- *   3 = mean of three events — LULC 2025
+ * Recommended workflow:
+ *   1. temporarily comment Section 12;
+ *   2. enable this test;
+ *   3. inspect the result;
+ *   4. then restore the full export block.
  */
 
 /*
-var testProduct =
-  ANOMALY_PRODUCTS[0];
+var testProduct = ANOMALY_PRODUCTS[0];
+var testState = STATE_REGIONS.filter(
+  function(stateRegion) {
+    return stateRegion.code === '35';
+  }
+)[0];
 
-
-var testBiomeRegion =
-  BIOME_REGIONS[3]; // Mata Atlântica (Sul)
-
-
-var test =
-  calculateProductPeriodBiome(
-    testProduct,
-    'SON',
-    testBiomeRegion
-  );
-
+var test = calculateProductPeriodState(
+  testProduct,
+  'SON',
+  testState
+);
 
 print(
-  'Test:',
-  testProduct.eventLabel,
-  '| event pair:',
-  testProduct.eventYearPair,
-  '| LULC:',
-  testProduct.classificationYear,
-  '| period: SON',
-  '| biome:',
-  testBiomeRegion.label,
-  test.limit(20)
+  'Test — São Paulo:',
+  test.limit(30)
 );
 */
 
 
 // =============================================================================
-// 15. VISUALIZATION PARAMETERS
+// 14. VISUAL CHECK
 // =============================================================================
 
 var VIS_ANOMALY = {
-  min:
-    -500,
-
-  max:
-    500,
-
+  min: -500,
+  max: 500,
   palette: [
     '67001f',
     '8b0000',
@@ -1060,37 +602,7 @@ var VIS_ANOMALY = {
 };
 
 
-// =============================================================================
-// 16. VISUAL CHECK
-// =============================================================================
-
-Map.setCenter(
-  -54,
-  -14,
-  4
-);
-
-
-Map.addLayer(
-  loadAnomaly(
-    ANOMALY_PRODUCTS[0],
-    'SON'
-  ),
-  VIS_ANOMALY,
-  'MapBiomas Atmosfera — El Niño 1997/98 — SON',
-  false
-);
-
-
-Map.addLayer(
-  loadAnomaly(
-    ANOMALY_PRODUCTS[1],
-    'SON'
-  ),
-  VIS_ANOMALY,
-  'MapBiomas Atmosfera — El Niño 2015/16 — SON',
-  false
-);
+Map.setCenter(-54, -14, 4);
 
 
 Map.addLayer(
@@ -1105,259 +617,61 @@ Map.addLayer(
 
 
 Map.addLayer(
-  loadAnomaly(
-    ANOMALY_PRODUCTS[3],
-    'SON'
-  ),
-  VIS_ANOMALY,
-  'MapBiomas Atmosfera — média dos três eventos — SON',
-  false
-);
-
-
-// =============================================================================
-// 17. MAPBIOMAS CLASSIFICATION LAYERS
-// =============================================================================
-
-CLASSIFICATION_YEARS.forEach(
-  function(year) {
-
-    Map.addLayer(
-      loadClassification(year),
-      {},
-      'MapBiomas Collection 11 — ' + year,
-      false
-    );
-  }
-);
-
-
-// =============================================================================
-// 18. ORIGINAL AND ADJUSTED BIOMES
-// =============================================================================
-
-Map.addLayer(
-  biomes.randomVisualizer(),
-  {},
-  'Biomas originais',
-  false
-);
-
-
-/*
- * Remap the non-contiguous adjusted codes to 1–7 only for palette display.
- * The analytical raster and CSV outputs retain codes 1, 2, 3, 41, 42, 5 and 6.
- */
-var adjustedBiomesForMap =
-  adjustedBiomes.remap(
-    [1, 2, 3, 41, 42, 5, 6],
-    [1, 2, 3, 4, 5, 6, 7]
-  )
-  .rename('adjusted_biome_visual')
-  .selfMask();
-
-
-var ADJUSTED_BIOME_PALETTE = [
-  '1f8d49', // Amazônia
-  'fdae61', // Caatinga
-  'dfc35a', // Cerrado
-  '7b3294', // Mata Atlântica (Sul)
-  'c2a5cf', // Mata Atlântica (Norte)
-  '2c7fb8', // Pampa
-  '80cdc1'  // Pantanal
-];
-
-
-Map.addLayer(
-  adjustedBiomesForMap,
-  {
-    min: 1,
-    max: 7,
-    palette: ADJUSTED_BIOME_PALETTE
-  },
-  'Biomas ajustados — Mata Atlântica Sul/Norte',
-  true
-);
-
-
-Map.addLayer(
-  mataAtlanticaReferenceMask,
-  {
-    palette: ['00ffff']
-  },
-  'Referência original — Mata Atlântica (bioma 4)',
-  false
-);
-
-
-Map.addLayer(
-  mataAtlanticaSplitMismatch,
-  {
-    palette: ['ff0000']
-  },
-  'ERRO de subdivisão — deve ficar vazio',
-  true
-);
-
-
-Map.addLayer(
-  mataAtlanticaSouthMask.selfMask(),
-  {
-    palette: ['7b3294']
-  },
-  'Mata Atlântica (Sul) — RJ, SP, PR, SC e RS',
-  false
-);
-
-
-Map.addLayer(
-  mataAtlanticaNorthMask.selfMask(),
-  {
-    palette: ['c2a5cf']
-  },
-  'Mata Atlântica (Norte) — demais estados',
-  false
-);
-
-
-Map.addLayer(
   brazilStates.style({
-    color: '808080',
+    color: '303030',
     fillColor: '00000000',
     width: 1
   }),
   {},
-  'Limites de todos os estados',
-  false
-);
-
-
-Map.addLayer(
-  southStates.style({
-    color: '000000',
-    fillColor: '00000000',
-    width: 2
-  }),
-  {},
-  'Estados da Mata Atlântica Sul — RJ, SP, PR, SC e RS',
+  'Limites estaduais',
   true
 );
 
 
-var biomeLegend = ui.Panel({
-  style: {
-    position: 'bottom-left',
-    padding: '8px 12px'
-  }
-});
+// =============================================================================
+// 15. FINAL CHECKS
+// =============================================================================
 
-
-biomeLegend.add(
-  ui.Label({
-    value: 'Biomas ajustados',
-    style: {
-      fontWeight: 'bold',
-      margin: '0 0 6px 0'
+var selectedStateCodes =
+  STATE_REGIONS.map(
+    function(stateRegion) {
+      return stateRegion.code;
     }
-  })
-);
-
-
-function addBiomeLegendRow(color, label) {
-
-  var colorBox =
-    ui.Label({
-      style: {
-        backgroundColor: '#' + color,
-        padding: '8px',
-        margin: '0 6px 4px 0'
-      }
-    });
-
-  var description =
-    ui.Label({
-      value: label,
-      style: {
-        margin: '0 0 4px 0'
-      }
-    });
-
-  biomeLegend.add(
-    ui.Panel({
-      widgets: [
-        colorBox,
-        description
-      ],
-      layout:
-        ui.Panel.Layout.Flow('horizontal')
-    })
   );
-}
 
 
-[
-  'Amazônia',
-  'Caatinga',
-  'Cerrado',
-  'Mata Atlântica (Sul)',
-  'Mata Atlântica (Norte)',
-  'Pampa',
-  'Pantanal'
-].forEach(
-  function(label, index) {
-    addBiomeLegendRow(
-      ADJUSTED_BIOME_PALETTE[index],
-      label
-    );
-  }
-);
-
-
-Map.add(biomeLegend);
-
-
-// =============================================================================
-// 19. PRODUCT CONFIGURATION TABLE
-// =============================================================================
-
-var productConfiguration =
-  ee.FeatureCollection(
-    ANOMALY_PRODUCTS.map(
-      function(product) {
-
-        return ee.Feature(
-          null,
-          {
-            anomaly_product:
-              product.key,
-
-            event_year_pair:
-              product.eventYearPair,
-
-            event_label:
-              product.eventLabel,
-
-            classification_year:
-              product.classificationYear,
-
-            asset_prefix:
-              product.assetPrefix
-          }
-        );
-      }
+var selectedStatesInAsset =
+  brazilStates.filter(
+    ee.Filter.inList(
+      'CD_GEOCUF',
+      selectedStateCodes
     )
   );
 
 
 print(
-  'Product × event × LULC configuration:',
-  productConfiguration
+  'Selected state codes:',
+  selectedStateCodes
 );
 
 
-// =============================================================================
-// 20. FINAL CHECKS
-// =============================================================================
+print(
+  'Number of configured states:',
+  STATE_REGIONS.length
+);
+
+
+print(
+  'Number of selected states found in asset:',
+  selectedStatesInAsset.size()
+);
+
+
+print(
+  'Names found in state asset:',
+  selectedStatesInAsset.aggregate_array('NM_ESTADO')
+);
+
 
 print(
   'Number of anomaly products:',
@@ -1366,45 +680,26 @@ print(
 
 
 print(
-  'Number of trimesters:',
-  PERIODS.length
-);
-
-
-print(
-  'Periods:',
+  'Enabled periods:',
   PERIODS
 );
 
 
 print(
-  'Number of adjusted biome regions:',
-  BIOME_REGIONS.length
-);
-
-
-print(
-  'Adjusted biome configuration:',
-  BIOME_REGIONS
-);
-
-
-print(
-  'Number of export tasks with currently enabled periods:',
+  'Number of export tasks:',
   ANOMALY_PRODUCTS.length *
-  PERIODS.length *
-  BIOME_REGIONS.length
+    PERIODS.length *
+    STATE_REGIONS.length
 );
 
 
 print(
-  'Expected with all four trimesters enabled: 4 × 4 × 7 = 112'
+  'Expected with SON only and all states: 4 × 1 × 27 = 108'
 );
 
 
 print(
-  'ANUAL / September-August included:',
-  false
+  'Expected with four periods and all states: 4 × 4 × 27 = 432'
 );
 
 
@@ -1416,53 +711,5 @@ print(
 
 
 print(
-  'tileScale:',
-  TILE_SCALE
-);
-
-
-print(
   'Area unit: hectares'
-);
-
-
-print(
-  'Mata Atlântica Sul — estados:',
-  SOUTH_STATE_NAMES
-);
-
-
-print(
-  'Mata Atlântica Sul — CD_GEOCUF:',
-  SOUTH_STATE_CODES
-);
-
-
-print(
-  'Mata Atlântica adjusted codes: 41 = Sul; 42 = Norte'
-);
-
-
-print(
-  'Event/LULC associations:'
-);
-
-
-print(
-  '1997/98 anomaly → MapBiomas 1997'
-);
-
-
-print(
-  '2015/16 anomaly → MapBiomas 2015'
-);
-
-
-print(
-  '2023/24 anomaly → MapBiomas 2023'
-);
-
-
-print(
-  'Mean of three events → MapBiomas 2025'
 );

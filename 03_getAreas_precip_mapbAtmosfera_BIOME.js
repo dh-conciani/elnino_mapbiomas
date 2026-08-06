@@ -35,14 +35,22 @@
 //   event_label
 //   period
 //   biome
+//   biome_name
+//   biome_region_key
+//   source_biome_id
 //   class
 //   precip_anomaly_mm
 //   anomaly_bin_mm
 //   area_ha
 //
-// NUMBER OF TASKS:
+// ADJUSTED BIOME CODES:
 //
-//   4 products × 4 trimesters × 6 biomes = 96 export tasks
+//   41 = Mata Atlântica (Sul): intersection of biome 4 with RS, SC, PR, SP and RJ
+//   42 = Mata Atlântica (Norte): remaining pixels of biome 4
+//
+// NUMBER OF TASKS WITH ALL FOUR TRIMESTERS ENABLED:
+//
+//   4 products × 4 trimesters × 7 adjusted biomes = 112 export tasks
 // =============================================================================
 
 
@@ -52,19 +60,93 @@
 
 var PERIODS = [
   'SON',
-  'DJF',
-  'MAM',
-  'JJA'
+  //'DJF',
+  //'MAM',
+  //'JJA'
 ];
 
 
-var BIOME_IDS = [
-  1,
-  2,
-  3,
-  4,
-  5,
-  6
+/*
+ * Original biome ID for Mata Atlântica in the biome raster.
+ */
+var MATA_ATLANTICA_ID = 4;
+
+
+/*
+ * State identifiers from projects/mapbiomas-workspace/AUXILIAR/estados-2017_old.
+ * CD_GEOCUF is stored as a String in that asset.
+ *
+ *   33 = Rio de Janeiro
+ *   35 = São Paulo
+ *   41 = Paraná
+ *   42 = Santa Catarina
+ *   43 = Rio Grande do Sul
+ */
+var SOUTH_STATE_CODES = [
+  '33',
+  '35',
+  '41',
+  '42',
+  '43'
+];
+
+
+var SOUTH_STATE_NAMES = [
+  'RIO DE JANEIRO',
+  'SÃO PAULO',
+  'PARANÁ',
+  'SANTA CATARINA',
+  'RIO GRANDE DO SUL'
+];
+
+
+/*
+ * The original six biomes become seven adjusted processing regions.
+ * Codes 41 and 42 replace original Mata Atlântica code 4 only in outputs.
+ */
+var BIOME_REGIONS = [
+  {
+    key: 'amazonia',
+    outputBiomeId: 1,
+    sourceBiomeId: 1,
+    label: 'Amazônia'
+  },
+  {
+    key: 'caatinga',
+    outputBiomeId: 2,
+    sourceBiomeId: 2,
+    label: 'Caatinga'
+  },
+  {
+    key: 'cerrado',
+    outputBiomeId: 3,
+    sourceBiomeId: 3,
+    label: 'Cerrado'
+  },
+  {
+    key: 'mata_atlantica_sul',
+    outputBiomeId: 41,
+    sourceBiomeId: MATA_ATLANTICA_ID,
+    label: 'Mata Atlântica (Sul)'
+  },
+  {
+    key: 'mata_atlantica_norte',
+    outputBiomeId: 42,
+    sourceBiomeId: MATA_ATLANTICA_ID,
+    label: 'Mata Atlântica (Norte)'
+  },
+  {
+    key: 'pampa',
+    outputBiomeId: 5,
+    sourceBiomeId: 5,
+    label: 'Pampa'
+  },
+  {
+    key: 'pantanal',
+    outputBiomeId: 6,
+    sourceBiomeId: 6,
+    label: 'Pantanal'
+  }
 ];
 
 
@@ -101,7 +183,7 @@ var DRIVE_FOLDER =
 
 
 var OUTPUT_PREFIX =
-  'collection11-mapbAtmosfera-precip-anomaly-biome-class';
+  'c11-atm-anom-biome-class';
 
 
 // =============================================================================
@@ -125,6 +207,17 @@ var PRECIP_DIR =
 var BIOMES_ASSET =
   'projects/mapbiomas-workspace/' +
   'AUXILIAR/biome_2025_buf5k_30m';
+
+
+/*
+ * MapBiomas/IBGE state boundaries. Relevant attributes:
+ *
+ *   CD_GEOCUF — state code stored as String
+ *   NM_ESTADO — state name
+ *   NM_REGIAO — Brazilian macroregion
+ */
+var STATES_ASSET =
+  'projects/mapbiomas-workspace/AUXILIAR/estados-2017_old';
 
 
 // =============================================================================
@@ -323,7 +416,7 @@ CLASSIFICATION_YEARS.forEach(
 
 
 // =============================================================================
-// 8. BIOMES
+// 8. BIOMES AND STATE-BASED MATA ATLÂNTICA SUBDIVISION
 // =============================================================================
 
 var biomes =
@@ -333,9 +426,182 @@ var biomes =
     .selfMask();
 
 
-print(
-  'Biomes:',
+var brazilStates =
+  ee.FeatureCollection(STATES_ASSET);
+
+
+/*
+ * Select exactly RJ, SP, PR, SC and RS by their stable state codes.
+ * Using CD_GEOCUF avoids differences in spelling, accents or capitalization.
+ */
+var southStates =
+  brazilStates.filter(
+    ee.Filter.inList(
+      'CD_GEOCUF',
+      SOUTH_STATE_CODES
+    )
+  );
+
+
+/*
+ * Rasterize the five selected states as 1 and all other pixels as 0.
+ */
+var southStatesMask =
+  ee.Image(0)
+    .byte()
+    .paint(
+      southStates,
+      1
+    )
+    .unmask(0)
+    .rename('south_states');
+
+
+/*
+ * AUTHORITATIVE MATA ATLÂNTICA REFERENCE:
+ * only pixels equal to biome code 4 in BIOMES_ASSET are eligible for either
+ * subdivision. selfMask() removes every other biome from the mask domain.
+ */
+var mataAtlanticaReferenceMask =
   biomes
+    .eq(MATA_ATLANTICA_ID)
+    .selfMask()
+    .rename('mata_atlantica_reference');
+
+
+/*
+ * Sul = original Mata Atlântica reference intersected with
+ * RS, SC, PR, SP and RJ.
+ */
+var mataAtlanticaSouthMask =
+  mataAtlanticaReferenceMask
+    .updateMask(
+      southStatesMask.eq(1)
+    )
+    .selfMask()
+    .rename('mata_atlantica_sul');
+
+
+/*
+ * Norte = original Mata Atlântica reference outside those five states.
+ * Because the starting image is mataAtlanticaReferenceMask, this operation
+ * cannot include Caatinga, Cerrado or any other biome.
+ */
+var mataAtlanticaNorthMask =
+  mataAtlanticaReferenceMask
+    .updateMask(
+      southStatesMask.eq(0)
+    )
+    .selfMask()
+    .rename('mata_atlantica_norte');
+
+
+/*
+ * Recombine both subdivisions for validation against the original reference.
+ */
+var mataAtlanticaRecombinedMask =
+  mataAtlanticaSouthMask
+    .unmask(0)
+    .or(
+      mataAtlanticaNorthMask.unmask(0)
+    )
+    .selfMask()
+    .rename('mata_atlantica_recombined');
+
+
+/*
+ * This mismatch layer should be empty. Any visible pixel indicates either a
+ * gap or an overlap relative to the original Mata Atlântica reference.
+ */
+var mataAtlanticaSplitMismatch =
+  mataAtlanticaReferenceMask
+    .unmask(0)
+    .neq(
+      mataAtlanticaRecombinedMask.unmask(0)
+    )
+    .selfMask()
+    .rename('mata_atlantica_split_mismatch');
+
+
+/*
+ * Adjusted biome raster used for checking and visualization.
+ * Only original code 4 is replaced by 41 (Sul) or 42 (Norte).
+ */
+var adjustedBiomes =
+  biomes
+    .where(
+      mataAtlanticaSouthMask.unmask(0).eq(1),
+      41
+    )
+    .where(
+      mataAtlanticaNorthMask.unmask(0).eq(1),
+      42
+    )
+    .rename('adjusted_biome')
+    .toInt16();
+
+
+function getBiomeRegionMask(biomeRegion) {
+
+  if (biomeRegion.key === 'mata_atlantica_sul') {
+    return mataAtlanticaSouthMask;
+  }
+
+  if (biomeRegion.key === 'mata_atlantica_norte') {
+    return mataAtlanticaNorthMask;
+  }
+
+  return biomes.eq(
+    biomeRegion.sourceBiomeId
+  );
+}
+
+
+print(
+  'Original biomes:',
+  biomes
+);
+
+
+print(
+  'Selected southern states — names:',
+  southStates.aggregate_array('NM_ESTADO')
+);
+
+
+print(
+  'Selected southern states — CD_GEOCUF:',
+  southStates.aggregate_array('CD_GEOCUF')
+);
+
+
+print(
+  'Number of selected southern states (expected 5):',
+  southStates.size()
+);
+
+
+print(
+  'Mata Atlântica source biome ID (expected 4):',
+  MATA_ATLANTICA_ID
+);
+
+
+print(
+  'Mata Atlântica reference mask:',
+  mataAtlanticaReferenceMask
+);
+
+
+print(
+  'Mata Atlântica split mismatch (should be empty):',
+  mataAtlanticaSplitMismatch
+);
+
+
+print(
+  'Adjusted biomes:',
+  adjustedBiomes
 );
 
 
@@ -418,11 +684,19 @@ var GROUP_STRIDE = 200001;
 function calculateProductPeriodBiome(
   product,
   period,
-  biomeIdValue
+  biomeRegion
 ) {
 
-  var biomeId =
-    ee.Number(biomeIdValue);
+  var outputBiomeId =
+    ee.Number(
+      biomeRegion.outputBiomeId
+    );
+
+
+  var sourceBiomeId =
+    ee.Number(
+      biomeRegion.sourceBiomeId
+    );
 
 
   // Product-specific MapBiomas classification.
@@ -440,9 +714,11 @@ function calculateProductPeriodBiome(
     );
 
 
-  // Selected biome.
+  // Selected original or adjusted biome region.
   var biomeMask =
-    biomes.eq(biomeId);
+    getBiomeRegionMask(
+      biomeRegion
+    );
 
 
   // Include only pixels valid in classification, anomaly and selected biome.
@@ -570,7 +846,16 @@ function calculateProductPeriodBiome(
             period,
 
           biome:
-            biomeId,
+            outputBiomeId,
+
+          biome_name:
+            biomeRegion.label,
+
+          biome_region_key:
+            biomeRegion.key,
+
+          source_biome_id:
+            sourceBiomeId,
 
           class:
             classId,
@@ -600,11 +885,11 @@ function calculateProductPeriodBiome(
 /*
  * One CSV task is created for every:
  *
- *   anomaly product × trimester × biome
+ *   anomaly product × trimester × adjusted biome region
  *
- * Total:
+ * Total with all four trimesters enabled:
  *
- *   4 × 4 × 6 = 96 tasks
+ *   4 × 4 × 7 = 112 tasks
  *
  * No ANUAL / September-August task is created.
  */
@@ -614,26 +899,30 @@ ANOMALY_PRODUCTS.forEach(
     PERIODS.forEach(
       function(period) {
 
-        BIOME_IDS.forEach(
-          function(biomeId) {
+        BIOME_REGIONS.forEach(
+          function(biomeRegion) {
 
+            // Keep the task name compact. Earth Engine task names must use
+            // only letters, numbers, hyphens and underscores, with no spaces.
             var outputName =
               OUTPUT_PREFIX +
               '-' +
               product.key +
-              '-lulc-' +
+              '-y' +
               product.classificationYear +
               '-' +
               period +
-              '-biome-' +
-              biomeId;
+              '-b' +
+              biomeRegion.outputBiomeId +
+              '-' +
+              biomeRegion.key;
 
 
             var areas =
               calculateProductPeriodBiome(
                 product,
                 period,
-                biomeId
+                biomeRegion
               );
 
 
@@ -660,6 +949,9 @@ ANOMALY_PRODUCTS.forEach(
                 'event_label',
                 'period',
                 'biome',
+                'biome_name',
+                'biome_region_key',
+                'source_biome_id',
                 'class',
                 'precip_anomaly_mm',
                 'anomaly_bin_mm',
@@ -678,7 +970,11 @@ ANOMALY_PRODUCTS.forEach(
               '| period:',
               period,
               '| biome:',
-              biomeId
+              biomeRegion.outputBiomeId,
+              '| biome name:',
+              biomeRegion.label,
+              '| source biome:',
+              biomeRegion.sourceBiomeId
             );
           }
         );
@@ -708,11 +1004,15 @@ var testProduct =
   ANOMALY_PRODUCTS[0];
 
 
+var testBiomeRegion =
+  BIOME_REGIONS[3]; // Mata Atlântica (Sul)
+
+
 var test =
   calculateProductPeriodBiome(
     testProduct,
     'SON',
-    1
+    testBiomeRegion
   );
 
 
@@ -724,7 +1024,8 @@ print(
   '| LULC:',
   testProduct.classificationYear,
   '| period: SON',
-  '| biome: 1',
+  '| biome:',
+  testBiomeRegion.label,
   test.limit(20)
 );
 */
@@ -832,15 +1133,187 @@ CLASSIFICATION_YEARS.forEach(
 
 
 // =============================================================================
-// 18. BIOMES
+// 18. ORIGINAL AND ADJUSTED BIOMES
 // =============================================================================
 
 Map.addLayer(
   biomes.randomVisualizer(),
   {},
-  'Biomas',
+  'Biomas originais',
   false
 );
+
+
+/*
+ * Remap the non-contiguous adjusted codes to 1–7 only for palette display.
+ * The analytical raster and CSV outputs retain codes 1, 2, 3, 41, 42, 5 and 6.
+ */
+var adjustedBiomesForMap =
+  adjustedBiomes.remap(
+    [1, 2, 3, 41, 42, 5, 6],
+    [1, 2, 3, 4, 5, 6, 7]
+  )
+  .rename('adjusted_biome_visual')
+  .selfMask();
+
+
+var ADJUSTED_BIOME_PALETTE = [
+  '1f8d49', // Amazônia
+  'fdae61', // Caatinga
+  'dfc35a', // Cerrado
+  '7b3294', // Mata Atlântica (Sul)
+  'c2a5cf', // Mata Atlântica (Norte)
+  '2c7fb8', // Pampa
+  '80cdc1'  // Pantanal
+];
+
+
+Map.addLayer(
+  adjustedBiomesForMap,
+  {
+    min: 1,
+    max: 7,
+    palette: ADJUSTED_BIOME_PALETTE
+  },
+  'Biomas ajustados — Mata Atlântica Sul/Norte',
+  true
+);
+
+
+Map.addLayer(
+  mataAtlanticaReferenceMask,
+  {
+    palette: ['00ffff']
+  },
+  'Referência original — Mata Atlântica (bioma 4)',
+  false
+);
+
+
+Map.addLayer(
+  mataAtlanticaSplitMismatch,
+  {
+    palette: ['ff0000']
+  },
+  'ERRO de subdivisão — deve ficar vazio',
+  true
+);
+
+
+Map.addLayer(
+  mataAtlanticaSouthMask.selfMask(),
+  {
+    palette: ['7b3294']
+  },
+  'Mata Atlântica (Sul) — RJ, SP, PR, SC e RS',
+  false
+);
+
+
+Map.addLayer(
+  mataAtlanticaNorthMask.selfMask(),
+  {
+    palette: ['c2a5cf']
+  },
+  'Mata Atlântica (Norte) — demais estados',
+  false
+);
+
+
+Map.addLayer(
+  brazilStates.style({
+    color: '808080',
+    fillColor: '00000000',
+    width: 1
+  }),
+  {},
+  'Limites de todos os estados',
+  false
+);
+
+
+Map.addLayer(
+  southStates.style({
+    color: '000000',
+    fillColor: '00000000',
+    width: 2
+  }),
+  {},
+  'Estados da Mata Atlântica Sul — RJ, SP, PR, SC e RS',
+  true
+);
+
+
+var biomeLegend = ui.Panel({
+  style: {
+    position: 'bottom-left',
+    padding: '8px 12px'
+  }
+});
+
+
+biomeLegend.add(
+  ui.Label({
+    value: 'Biomas ajustados',
+    style: {
+      fontWeight: 'bold',
+      margin: '0 0 6px 0'
+    }
+  })
+);
+
+
+function addBiomeLegendRow(color, label) {
+
+  var colorBox =
+    ui.Label({
+      style: {
+        backgroundColor: '#' + color,
+        padding: '8px',
+        margin: '0 6px 4px 0'
+      }
+    });
+
+  var description =
+    ui.Label({
+      value: label,
+      style: {
+        margin: '0 0 4px 0'
+      }
+    });
+
+  biomeLegend.add(
+    ui.Panel({
+      widgets: [
+        colorBox,
+        description
+      ],
+      layout:
+        ui.Panel.Layout.Flow('horizontal')
+    })
+  );
+}
+
+
+[
+  'Amazônia',
+  'Caatinga',
+  'Cerrado',
+  'Mata Atlântica (Sul)',
+  'Mata Atlântica (Norte)',
+  'Pampa',
+  'Pantanal'
+].forEach(
+  function(label, index) {
+    addBiomeLegendRow(
+      ADJUSTED_BIOME_PALETTE[index],
+      label
+    );
+  }
+);
+
+
+Map.add(biomeLegend);
 
 
 // =============================================================================
@@ -905,21 +1378,27 @@ print(
 
 
 print(
-  'Number of biomes:',
-  BIOME_IDS.length
+  'Number of adjusted biome regions:',
+  BIOME_REGIONS.length
 );
 
 
 print(
-  'Number of export tasks:',
+  'Adjusted biome configuration:',
+  BIOME_REGIONS
+);
+
+
+print(
+  'Number of export tasks with currently enabled periods:',
   ANOMALY_PRODUCTS.length *
   PERIODS.length *
-  BIOME_IDS.length
+  BIOME_REGIONS.length
 );
 
 
 print(
-  'Expected tasks: 4 × 4 × 6 = 96'
+  'Expected with all four trimesters enabled: 4 × 4 × 7 = 112'
 );
 
 
@@ -944,6 +1423,23 @@ print(
 
 print(
   'Area unit: hectares'
+);
+
+
+print(
+  'Mata Atlântica Sul — estados:',
+  SOUTH_STATE_NAMES
+);
+
+
+print(
+  'Mata Atlântica Sul — CD_GEOCUF:',
+  SOUTH_STATE_CODES
+);
+
+
+print(
+  'Mata Atlântica adjusted codes: 41 = Sul; 42 = Norte'
 );
 
 
